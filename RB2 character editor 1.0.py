@@ -31,6 +31,8 @@ textureNames = []
 tx2dInfos = []
 # The textures itslef
 textures_data = []
+# Size of the vram file
+vram_fileSize = 0
 # Indexes of textures edited
 textures_index_edited = []
 # Quanty of difference between the modifed texture and the old one
@@ -142,7 +144,8 @@ def openVRAMFile(vram_path, tx2dInfos):
         texture_offset = int.from_bytes(file.read(bytes2Read), "big")
 
         # The size of the file is in position 20
-        fileSize = int.from_bytes(file.read(bytes2Read), "big")
+        global vram_fileSize
+        vram_fileSize = int.from_bytes(file.read(bytes2Read), "big")
 
         # Get each texture
         header_1 = "44 44 53 20 7C 00 00 00 07 10 00 00".strip()
@@ -254,16 +257,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 msg.exec()
             # Can import the texture
             else:
-
                 # Get the difference in size between original and modified in order to change the offsets
                 len_data = len(data[128:])
                 difference = len_data - tx2dInfos[currentSelectedTexture].dataSize
                 if difference != 0:
                     tx2dInfos[currentSelectedTexture].dataSize = len_data
                     offset_quanty_difference[currentSelectedTexture] = difference
-                    if currentSelectedTexture+1 < sprp_struct.dataCount:
-                        for i in range(currentSelectedTexture+1,sprp_struct.dataCount):
-                            tx2dInfos[i].dataOffset += difference
 
                 # Change texture in the array
                 textures_data[currentSelectedTexture] = data
@@ -379,19 +378,30 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # Create a copy of the original file
                 copyfile(spr_file_path, spr_export_path)
 
+                # Update the offsets
+                first_index_texture_edited = textures_index_edited[0]
+                quanty_aux = 0
+                if first_index_texture_edited + 1 < sprp_struct.dataCount:
+                    tx2dInfos[first_index_texture_edited].dataOffsetOld = tx2dInfos[first_index_texture_edited].dataOffset
+                    quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
+                    for i in range(first_index_texture_edited + 1, sprp_struct.dataCount):
+                        tx2dInfos[i].dataOffsetOld = tx2dInfos[i].dataOffset
+                        tx2dInfos[i].dataOffset += quanty_aux
+                        tx2dInfos[i].dataOffset = int(abs(tx2dInfos[i].dataOffset))
+                        quanty_aux += offset_quanty_difference[i]
+
                 with open(spr_export_path, mode="rb+") as output_file_spr:
                     # Move where the information starts to the first modified texture
-                    first_index_texture_edited = textures_index_edited[0]
                     output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[first_index_texture_edited].dataOffset + 12)
                     output_file_spr.write(tx2dInfos[first_index_texture_edited].dataSize.to_bytes(4, byteorder="big"))
                     first_index_texture_edited += 1
                     if first_index_texture_edited < sprp_struct.dataCount:
                         for i in range(first_index_texture_edited,sprp_struct.dataCount):
-                                # Move where the information starts to the next textures
-                                output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[i].dataOffset + 4)
-                                output_file_spr.write(tx2dInfos[i].dataOffset.to_bytes(4, byteorder="big"))
-                                output_file_spr.seek(4, os.SEEK_CUR)
-                                output_file_spr.write(tx2dInfos[i].dataSize.to_bytes(4, byteorder="big"))
+                            # Move where the information starts to the next textures
+                            output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[i].dataOffset + 4)
+                            output_file_spr.write(tx2dInfos[i].dataOffset.to_bytes(4, byteorder="big"))
+                            output_file_spr.seek(4, os.SEEK_CUR)
+                            output_file_spr.write(tx2dInfos[i].dataSize.to_bytes(4, byteorder="big"))
 
                 global vram_file_path_original
 
@@ -400,6 +410,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # replacing textures
                 with open(vram_export_path, mode="wb") as output_file:
                     with open(vram_file_path, mode="rb") as input_file:
+
                         # Move to the position 16, where it tells the offset of the file where the texture starts
                         data = input_file.read(16)
                         output_file.write(data)
@@ -411,19 +422,33 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         # Get each offset texture and write over the original file
                         for texture_index in textures_index_edited:
                             tx2dInfo = tx2dInfos[texture_index]
-                            data = input_file.read(tx2dInfo.dataOffset + texture_offset - input_file.tell())
+                            data = input_file.read(tx2dInfo.dataOffsetOld + texture_offset - input_file.tell())
                             output_file.write(data)
-                            print(int(offset_quanty_difference[texture_index]))
-                            input_file.seek(tx2dInfos[texture_index].dataSize - int(offset_quanty_difference[texture_index]), os.SEEK_CUR)
+                            input_file.seek(tx2dInfo.dataSize - int(offset_quanty_difference[texture_index]), os.SEEK_CUR)
                             output_file.write(textures_data[texture_index][128:])
 
                         data = input_file.read()
                         output_file.write(data)
 
-                args = "dbrb_compressor.exe \"" + spr_export_path + "\" \"" + spr_file_path_original + "\""
+                        # Modify the bytes in pos 20 that indicates the size of the file
+                        global vram_fileSize
+                        vram_fileSize -= abs(output_file.tell() - input_file.tell())
+                        vram_fileSize = abs(vram_fileSize)
+
+                # Change the header of pos 256 in spr file because in that place indicates the size of the final output file
+                with open(spr_export_path, mode="rb+") as output_file:
+                    output_file.seek(stpk_struct.dataOffset + 49)
+                    output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
+                # Change the header of pos 20 in vram file because that place indicates the size of the final output file
+                with open(vram_export_path, mode="rb+") as output_file:
+                    output_file.seek(20)
+                    output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
+
+
+                args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" + spr_file_path_original + "\""
                 subprocess.check_call(args, shell=False)
 
-                args = "dbrb_compressor.exe \"" + vram_export_path + "\" \"" + vram_file_path_original + "\""
+                args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_export_path + "\" \"" + vram_file_path_original + "\""
                 subprocess.check_call(args, shell=False)
 
                 msg = QMessageBox()
