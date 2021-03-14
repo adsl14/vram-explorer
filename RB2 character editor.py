@@ -287,7 +287,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.exec()
             return
         global spr_file_path
-        spr_file_path = spr_file_path_original.replace(".spr","_uncompressed.spr")
+        spr_file_path = spr_file_path_original.replace(".spr","_u.spr")
         args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
         print(args)
         subprocess.check_call(args, shell=False)
@@ -303,7 +303,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             return
 
         global vram_file_path
-        vram_file_path = vram_file_path_original.replace(".vram","_uncompressed.vram")
+        vram_file_path = vram_file_path_original.replace(".vram","_u.vram")
         args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
         subprocess.check_call(args, shell=False)
 
@@ -362,8 +362,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.setText("The character hasn't been modified.")
             msg.exec()
         else:
-            spr_export_path = QFileDialog.getSaveFileName(self, "Save spr file", spr_file_path.replace(".spr", "_modified.spr"),"SPR file (*.spr)")[0]
-            vram_export_path = QFileDialog.getSaveFileName(self, "Save vram file", vram_file_path.replace(".vram","_modified.vram"), "VRAM file (*.vram)")[0]
+            spr_export_path = QFileDialog.getSaveFileName(self, "Save spr file", spr_file_path.replace(".spr", "_m.spr"),"SPR file (*.spr)")[0]
+            vram_export_path = QFileDialog.getSaveFileName(self, "Save vram file", vram_file_path.replace(".vram","_m.vram"), "VRAM file (*.vram)")[0]
 
             # If the paths are corrects, then we modify the files
             if vram_export_path and spr_export_path:
@@ -373,7 +373,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 # modifying the spr file offsets
                 global spr_file_path_original
-                spr_file_path_original = spr_file_path_original.replace(".spr", "_modified.spr")
+                spr_file_path_original = spr_file_path_original.replace(".spr", "_m.spr")
 
                 # Create a copy of the original file
                 copyfile(spr_file_path, spr_export_path)
@@ -405,7 +405,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 global vram_file_path_original
 
-                vram_file_path_original = vram_file_path_original.replace(".vram", "_modified.vram")
+                vram_file_path_original = vram_file_path_original.replace(".vram", "_m.vram")
 
                 # replacing textures
                 with open(vram_export_path, mode="wb") as output_file:
@@ -432,12 +432,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                         # Modify the bytes in pos 20 that indicates the size of the file
                         global vram_fileSize
-                        vram_fileSize -= abs(output_file.tell() - input_file.tell())
+                        vram_fileSize += output_file.tell() - input_file.tell()
                         vram_fileSize = abs(vram_fileSize)
 
                 # Change the header of pos 256 in spr file because in that place indicates the size of the final output file
                 with open(spr_export_path, mode="rb+") as output_file:
-                    output_file.seek(stpk_struct.dataOffset + 49)
+                    output_file.seek(stpk_struct.dataOffset + 48)
                     output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
                 # Change the header of pos 20 in vram file because that place indicates the size of the final output file
                 with open(vram_export_path, mode="rb+") as output_file:
