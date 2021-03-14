@@ -469,7 +469,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
-        msg.setText("RB2 character editor 1.0 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+        msg.setText("RB2 character editor 1.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     def actionCreditsLogic(self):

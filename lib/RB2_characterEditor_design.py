@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'RB2_characterEditor_design.ui'
+# Form implementation generated from reading ui file 'F:\Programas\byMe\Raging Blast 2 tools\RB2-character-editor\lib\RB2_characterEditor_design.ui'
 #
 # Created by: PyQt5 UI code generator 5.9.2
 #
@@ -86,7 +86,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 character editor 1.0"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 character editor 1.1"))
         self.exportButton.setText(_translate("MainWindow", "E&xport"))
         self.importButton.setText(_translate("MainWindow", "I&mport"))
         self.menuFIle.setTitle(_translate("MainWindow", "&File"))
