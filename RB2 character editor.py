@@ -6,7 +6,7 @@ from lib.SPRP_struct import SPRP_struct
 from lib.SPRP_DATA_INFO import SPRP_DATA_INFO
 from lib.TX2D_INFO import TX2D_INFO
 
-import os, subprocess, numpy as np
+import os, numpy as np
 from pyglet import image
 from shutil import copyfile
 
@@ -188,6 +188,12 @@ def actionItem(QModelIndex, imageTexture, encodingImageText, sizeImageText):
     encodingImageText.setText("Encoding: %s" % (getDXTByte(tx2dInfos[currentSelectedTexture].dxtEncoding).decode('utf-8')))
     sizeImageText.setText("Size: %dx%d" % (tx2dInfos[currentSelectedTexture].width, tx2dInfos[currentSelectedTexture].height))
 
+def removeUncompressedFile(uncompressed_file):
+
+    # Remove the output file if exists, because the script won't work if there is a output file with the same name
+    if os.path.exists(uncompressed_file):
+        os.system('cmd /c ' + "rm \"" + uncompressed_file + "\"")
+
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
@@ -198,7 +204,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # File tab
         self.actionOpen.triggered.connect(self.actionOpenLogic)
         self.actionSave.triggered.connect(self.actionSaveLogic)
-        self.actionClose.triggered.connect(self.actionCloseLogic)
+        self.actionClose.triggered.connect(self.close)
 
         # About tab
         self.actionAuthor.triggered.connect(self.actionAuthorLogic)
@@ -287,10 +293,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.exec()
             return
         global spr_file_path
+        # Execute the script in a command line
         spr_file_path = spr_file_path_original.replace(".spr","_u.spr")
+        # Remove the uncompressed files
+        removeUncompressedFile(spr_file_path)
         args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
-        print(args)
-        subprocess.check_call(args, shell=False)
+        os.system('cmd /c ' + args)
 
         # Open vram file
         global vram_file_path_original
@@ -303,9 +311,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             return
 
         global vram_file_path
+        # Execute the script in a command line
         vram_file_path = vram_file_path_original.replace(".vram","_u.vram")
+        # Remove the uncompressed files
+        removeUncompressedFile(vram_file_path)
         args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
-        subprocess.check_call(args, shell=False)
+        os.system('cmd /c ' + args)
 
         # Load the data from the files
         sprpDatasInfo.clear()
@@ -362,108 +373,109 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.setText("The character hasn't been modified.")
             msg.exec()
         else:
-            spr_export_path = QFileDialog.getSaveFileName(self, "Save spr file", spr_file_path.replace(".spr", "_m.spr"),"SPR file (*.spr)")[0]
-            vram_export_path = QFileDialog.getSaveFileName(self, "Save vram file", vram_file_path.replace(".vram","_m.vram"), "VRAM file (*.vram)")[0]
 
-            # If the paths are corrects, then we modify the files
-            if vram_export_path and spr_export_path:
+            # Default paths
+            spr_export_path = spr_file_path.replace(".spr", "_m.spr")
+            vram_export_path = vram_file_path.replace(".vram","_m.vram")
 
-                # Sort the indexes of the modified textures
-                textures_index_edited.sort()
+            # Sort the indexes of the modified textures
+            textures_index_edited.sort()
 
-                # modifying the spr file offsets
-                global spr_file_path_original
-                spr_file_path_original = spr_file_path_original.replace(".spr", "_m.spr")
+            # modifying the spr file offsets
+            global spr_file_path_original
+            spr_file_path_modified = spr_file_path_original.replace(".spr", "_m.spr")
 
-                # Create a copy of the original file
-                copyfile(spr_file_path, spr_export_path)
+            # Create a copy of the original file
+            copyfile(spr_file_path, spr_export_path)
 
-                # Update the offsets
-                first_index_texture_edited = textures_index_edited[0]
-                quanty_aux = 0
-                if first_index_texture_edited + 1 < sprp_struct.dataCount:
-                    tx2dInfos[first_index_texture_edited].dataOffsetOld = tx2dInfos[first_index_texture_edited].dataOffset
-                    quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
-                    for i in range(first_index_texture_edited + 1, sprp_struct.dataCount):
-                        tx2dInfos[i].dataOffsetOld = tx2dInfos[i].dataOffset
-                        tx2dInfos[i].dataOffset += quanty_aux
-                        tx2dInfos[i].dataOffset = int(abs(tx2dInfos[i].dataOffset))
-                        quanty_aux += offset_quanty_difference[i]
+            # Update the offsets
+            first_index_texture_edited = textures_index_edited[0]
+            quanty_aux = 0
+            if first_index_texture_edited + 1 < sprp_struct.dataCount:
+                tx2dInfos[first_index_texture_edited].dataOffsetOld = tx2dInfos[first_index_texture_edited].dataOffset
+                quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
+                for i in range(first_index_texture_edited + 1, sprp_struct.dataCount):
+                    tx2dInfos[i].dataOffsetOld = tx2dInfos[i].dataOffset
+                    tx2dInfos[i].dataOffset += quanty_aux
+                    tx2dInfos[i].dataOffset = int(abs(tx2dInfos[i].dataOffset))
+                    quanty_aux += offset_quanty_difference[i]
 
-                with open(spr_export_path, mode="rb+") as output_file_spr:
-                    # Move where the information starts to the first modified texture
-                    output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[first_index_texture_edited].dataOffset + 12)
-                    output_file_spr.write(tx2dInfos[first_index_texture_edited].dataSize.to_bytes(4, byteorder="big"))
-                    first_index_texture_edited += 1
-                    if first_index_texture_edited < sprp_struct.dataCount:
-                        for i in range(first_index_texture_edited,sprp_struct.dataCount):
-                            # Move where the information starts to the next textures
-                            output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[i].dataOffset + 4)
-                            output_file_spr.write(tx2dInfos[i].dataOffset.to_bytes(4, byteorder="big"))
-                            output_file_spr.seek(4, os.SEEK_CUR)
-                            output_file_spr.write(tx2dInfos[i].dataSize.to_bytes(4, byteorder="big"))
+            with open(spr_export_path, mode="rb+") as output_file_spr:
+                # Move where the information starts to the first modified texture
+                output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[first_index_texture_edited].dataOffset + 12)
+                output_file_spr.write(tx2dInfos[first_index_texture_edited].dataSize.to_bytes(4, byteorder="big"))
+                first_index_texture_edited += 1
+                if first_index_texture_edited < sprp_struct.dataCount:
+                    for i in range(first_index_texture_edited,sprp_struct.dataCount):
+                        # Move where the information starts to the next textures
+                        output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[i].dataOffset + 4)
+                        output_file_spr.write(tx2dInfos[i].dataOffset.to_bytes(4, byteorder="big"))
+                        output_file_spr.seek(4, os.SEEK_CUR)
+                        output_file_spr.write(tx2dInfos[i].dataSize.to_bytes(4, byteorder="big"))
 
-                global vram_file_path_original
+            global vram_file_path_original
+            vram_file_path_modified = vram_file_path_original.replace(".vram", "_m.vram")
 
-                vram_file_path_original = vram_file_path_original.replace(".vram", "_m.vram")
+            # replacing textures
+            with open(vram_export_path, mode="wb") as output_file:
+                with open(vram_file_path, mode="rb") as input_file:
 
-                # replacing textures
-                with open(vram_export_path, mode="wb") as output_file:
-                    with open(vram_file_path, mode="rb") as input_file:
+                    # Move to the position 16, where it tells the offset of the file where the texture starts
+                    data = input_file.read(16)
+                    output_file.write(data)
 
-                        # Move to the position 16, where it tells the offset of the file where the texture starts
-                        data = input_file.read(16)
+                    data = input_file.read(bytes2Read)
+                    output_file.write(data)
+                    texture_offset = int.from_bytes(data, "big")
+
+                    # Get each offset texture and write over the original file
+                    for texture_index in textures_index_edited:
+                        tx2dInfo = tx2dInfos[texture_index]
+                        data = input_file.read(tx2dInfo.dataOffsetOld + texture_offset - input_file.tell())
                         output_file.write(data)
+                        input_file.seek(tx2dInfo.dataSize - int(offset_quanty_difference[texture_index]), os.SEEK_CUR)
+                        output_file.write(textures_data[texture_index][128:])
 
-                        data = input_file.read(bytes2Read)
-                        output_file.write(data)
-                        texture_offset = int.from_bytes(data, "big")
+                    data = input_file.read()
+                    output_file.write(data)
 
-                        # Get each offset texture and write over the original file
-                        for texture_index in textures_index_edited:
-                            tx2dInfo = tx2dInfos[texture_index]
-                            data = input_file.read(tx2dInfo.dataOffsetOld + texture_offset - input_file.tell())
-                            output_file.write(data)
-                            input_file.seek(tx2dInfo.dataSize - int(offset_quanty_difference[texture_index]), os.SEEK_CUR)
-                            output_file.write(textures_data[texture_index][128:])
+                    # Modify the bytes in pos 20 that indicates the size of the file
+                    global vram_fileSize
+                    vram_fileSize += output_file.tell() - input_file.tell()
+                    vram_fileSize = abs(vram_fileSize)
 
-                        data = input_file.read()
-                        output_file.write(data)
+            # Change the header of pos 256 in spr file because in that place indicates the size of the final output file
+            with open(spr_export_path, mode="rb+") as output_file:
+                output_file.seek(stpk_struct.dataOffset + 48)
+                output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
+            # Change the header of pos 20 in vram file because that place indicates the size of the final output file
+            with open(vram_export_path, mode="rb+") as output_file:
+                output_file.seek(20)
+                output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
 
-                        # Modify the bytes in pos 20 that indicates the size of the file
-                        global vram_fileSize
-                        vram_fileSize += output_file.tell() - input_file.tell()
-                        vram_fileSize = abs(vram_fileSize)
+            removeUncompressedFile(spr_file_path_modified)
+            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" + spr_file_path_modified + "\""
+            os.system('cmd /c ' + args)
 
-                # Change the header of pos 256 in spr file because in that place indicates the size of the final output file
-                with open(spr_export_path, mode="rb+") as output_file:
-                    output_file.seek(stpk_struct.dataOffset + 48)
-                    output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
-                # Change the header of pos 20 in vram file because that place indicates the size of the final output file
-                with open(vram_export_path, mode="rb+") as output_file:
-                    output_file.seek(20)
-                    output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
+            removeUncompressedFile(vram_file_path_modified)
+            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_export_path + "\" \"" + vram_file_path_modified + "\""
+            os.system('cmd /c ' + args)
 
+            msg = QMessageBox()
+            msg.setWindowTitle("Message")
+            msg.setText("The files were saved and compressed in %s" % (vram_file_path_modified.replace(".vram","")))
+            msg.exec()
 
-                args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" + spr_file_path_original + "\""
-                subprocess.check_call(args, shell=False)
+            # Remove the uncompressed modified files
+            os.remove(spr_export_path)
+            os.remove(vram_export_path)
 
-                args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_export_path + "\" \"" + vram_file_path_original + "\""
-                subprocess.check_call(args, shell=False)
+    def closeEvent(self, event):
+        # Remove the uncompressed files
+        removeUncompressedFile(vram_file_path)
+        removeUncompressedFile(spr_file_path)
 
-                msg = QMessageBox()
-                msg.setWindowTitle("Message")
-                msg.setText("The file spr was saved and compressed correctly in %s\nThe file vram was saved and compressed correctly in %s" % (spr_file_path_original, vram_file_path_original))
-                msg.exec()
-
-            else:
-                msg = QMessageBox()
-                msg.setWindowTitle("Error")
-                msg.setText("A path for the outputs is needed.")
-                msg.exec()
-
-    def actionCloseLogic(self):
-        self.close()
+        event.accept()
 
     def actionAuthorLogic(self):
         msg = QMessageBox()
