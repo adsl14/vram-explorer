@@ -295,10 +295,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         global spr_file_path
         # Execute the script in a command line
         spr_file_path = spr_file_path_original.replace(".spr","_u.spr")
-        # Remove the uncompressed files
-        removeUncompressedFile(spr_file_path)
-        args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
-        os.system('cmd /c ' + args)
+        if not os.path.exists(spr_file_path):
+            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
+            os.system('cmd /c ' + args)
 
         # Open vram file
         global vram_file_path_original
@@ -313,10 +312,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         global vram_file_path
         # Execute the script in a command line
         vram_file_path = vram_file_path_original.replace(".vram","_u.vram")
-        # Remove the uncompressed files
-        removeUncompressedFile(vram_file_path)
-        args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
-        os.system('cmd /c ' + args)
+        if not os.path.exists(vram_file_path):
+            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
+            os.system('cmd /c ' + args)
 
         # Load the data from the files
         sprpDatasInfo.clear()
@@ -431,7 +429,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     # Get each offset texture and write over the original file
                     for texture_index in textures_index_edited:
                         tx2dInfo = tx2dInfos[texture_index]
-                        data = input_file.read(tx2dInfo.dataOffsetOld + texture_offset - input_file.tell())
+                        data = input_file.read(abs(tx2dInfo.dataOffsetOld + texture_offset - input_file.tell()))
                         output_file.write(data)
                         input_file.seek(tx2dInfo.dataSize - int(offset_quanty_difference[texture_index]), os.SEEK_CUR)
                         output_file.write(textures_data[texture_index][128:])
