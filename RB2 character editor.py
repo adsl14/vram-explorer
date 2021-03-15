@@ -121,7 +121,9 @@ def openSPRFile(spr_path):
             tx2D_info.dataSize = int.from_bytes(file.read(bytes2Read), "big")
             tx2D_info.width = int.from_bytes(file.read(2), "big")
             tx2D_info.height = int.from_bytes(file.read(2), "big")
-            file.seek(12, os.SEEK_CUR)
+            file.seek(2, os.SEEK_CUR)
+            tx2D_info.mipMaps = int.from_bytes(file.read(2), "big")
+            file.seek(8, os.SEEK_CUR)
             tx2D_info.dxtEncoding = int.from_bytes(file.read(1), "big")
             tx2dInfos.append(tx2D_info)
 
@@ -166,7 +168,7 @@ def openVRAMFile(vram_path, tx2dInfos):
             textures_data.append(data)
 
 
-def actionItem(QModelIndex, imageTexture, encodingImageText, sizeImageText):
+def actionItem(QModelIndex, imageTexture, encodingImageText, mipMapsImageText, sizeImageText):
 
     global currentSelectedTexture
     currentSelectedTexture = QModelIndex.row()
@@ -186,6 +188,7 @@ def actionItem(QModelIndex, imageTexture, encodingImageText, sizeImageText):
         imageTexture.clear()
 
     encodingImageText.setText("Encoding: %s" % (getDXTByte(tx2dInfos[currentSelectedTexture].dxtEncoding).decode('utf-8')))
+    mipMapsImageText.setText("Mipmaps: %s" % (tx2dInfos[currentSelectedTexture].mipMaps))
     sizeImageText.setText("Size: %dx%d" % (tx2dInfos[currentSelectedTexture].width, tx2dInfos[currentSelectedTexture].height))
 
 def removeUncompressedFile(uncompressed_file):
@@ -216,8 +219,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.exportButton.setVisible(False)
         self.importButton.setVisible(False)
 
-        # Label
+        # Labels
         self.encodingImageText.setVisible(False)
+        self.mipMapsImageText.setVisible(False)
         self.sizeImageText.setVisible(False)
 
     def actionExportLogic(self):
@@ -337,7 +341,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             item = QStandardItem(i)
             item.setEditable(False)
             model.appendRow(item)
-        self.listView.clicked.connect(lambda qModelIdx: actionItem(qModelIdx, self.imageTexture, self.sizeImageText, self.encodingImageText))
+        self.listView.clicked.connect(lambda qModelIdx: actionItem(qModelIdx, self.imageTexture, self.encodingImageText, self.mipMapsImageText, self.sizeImageText))
 
         # Create the dds in disk and open it
         file = open("temp.dds", mode="wb")
@@ -354,8 +358,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Show the text labels
         self.encodingImageText.setText("Encoding: %s" % (getDXTByte(tx2dInfos[currentSelectedTexture].dxtEncoding).decode('utf-8')))
+        self.mipMapsImageText.setText("Mipmaps: %d" % (tx2dInfos[currentSelectedTexture].mipMaps))
         self.sizeImageText.setText("Size: %dx%d" % (tx2dInfos[currentSelectedTexture].width, tx2dInfos[currentSelectedTexture].height))
         self.encodingImageText.setVisible(True)
+        self.mipMapsImageText.setVisible(True)
         self.sizeImageText.setVisible(True)
 
     def actionSaveLogic(self):

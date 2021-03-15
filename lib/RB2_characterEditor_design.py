@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'F:\Programas\byMe\Raging Blast 2 tools\RB2-character-editor\lib\RB2_characterEditor_design.ui'
+# Form implementation generated from reading ui file 'RB2_characterEditor_design.ui'
 #
 # Created by: PyQt5 UI code generator 5.9.2
 #
@@ -33,7 +33,7 @@ class Ui_MainWindow(object):
         self.frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.frame.setObjectName("frame")
         self.imageTexture = QtWidgets.QLabel(self.frame)
-        self.imageTexture.setGeometry(QtCore.QRect(40, 40, 461, 501))
+        self.imageTexture.setGeometry(QtCore.QRect(40, 60, 461, 501))
         self.imageTexture.setText("")
         self.imageTexture.setObjectName("imageTexture")
         self.exportButton = QtWidgets.QPushButton(self.frame)
@@ -43,13 +43,17 @@ class Ui_MainWindow(object):
         self.importButton.setGeometry(QtCore.QRect(450, 580, 75, 23))
         self.importButton.setObjectName("importButton")
         self.sizeImageText = QtWidgets.QLabel(self.frame)
-        self.sizeImageText.setGeometry(QtCore.QRect(130, 10, 151, 16))
+        self.sizeImageText.setGeometry(QtCore.QRect(20, 10, 151, 16))
         self.sizeImageText.setText("")
         self.sizeImageText.setObjectName("sizeImageText")
         self.encodingImageText = QtWidgets.QLabel(self.frame)
         self.encodingImageText.setGeometry(QtCore.QRect(330, 10, 171, 16))
         self.encodingImageText.setText("")
         self.encodingImageText.setObjectName("encodingImageText")
+        self.mipMapsImageText = QtWidgets.QLabel(self.frame)
+        self.mipMapsImageText.setGeometry(QtCore.QRect(190, 10, 121, 16))
+        self.mipMapsImageText.setText("")
+        self.mipMapsImageText.setObjectName("mipMapsImageText")
         self.horizontalLayout.addWidget(self.frame)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)

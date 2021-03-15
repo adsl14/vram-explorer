@@ -4,4 +4,5 @@ class TX2D_INFO:
   dataSize = 0
   width = 0
   height = 0
+  mipMaps = 0
   dxtEncoding = 0
