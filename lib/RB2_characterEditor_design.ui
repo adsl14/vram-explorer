@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>RB2 character editor 1.1</string>
+   <string>RB2 character editor 1.1.1</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QWidget" name="horizontalLayoutWidget">
@@ -54,6 +54,12 @@
         <property name="text">
          <string/>
         </property>
+        <property name="scaledContents">
+         <bool>true</bool>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
        </widget>
        <widget class="QPushButton" name="exportButton">
         <property name="geometry">
@@ -86,38 +92,47 @@
          <rect>
           <x>20</x>
           <y>10</y>
-          <width>151</width>
+          <width>150</width>
           <height>16</height>
          </rect>
         </property>
         <property name="text">
          <string/>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
         </property>
        </widget>
        <widget class="QLabel" name="encodingImageText">
         <property name="geometry">
          <rect>
-          <x>330</x>
+          <x>379</x>
           <y>10</y>
-          <width>171</width>
+          <width>150</width>
           <height>16</height>
          </rect>
         </property>
         <property name="text">
          <string/>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
         </property>
        </widget>
        <widget class="QLabel" name="mipMapsImageText">
         <property name="geometry">
          <rect>
-          <x>190</x>
+          <x>200</x>
           <y>10</y>
-          <width>121</width>
+          <width>150</width>
           <height>16</height>
          </rect>
         </property>
         <property name="text">
          <string/>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
         </property>
        </widget>
       </widget>

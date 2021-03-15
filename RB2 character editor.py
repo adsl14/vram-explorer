@@ -6,9 +6,9 @@ from lib.SPRP_struct import SPRP_struct
 from lib.SPRP_DATA_INFO import SPRP_DATA_INFO
 from lib.TX2D_INFO import TX2D_INFO
 
-import os, numpy as np
+import os, numpy as np, stat
 from pyglet import image
-from shutil import copyfile
+from shutil import copyfile, rmtree
 
 # number of bytes that usually reads the program
 bytes2Read = 4
@@ -38,6 +38,11 @@ textures_index_edited = []
 # Quanty of difference between the modifed texture and the old one
 offset_quanty_difference = None
 
+def del_rw(action, name, exc):
+    os.chmod(name, stat.S_IWRITE)
+    os.remove(name)
+
+
 def readDDSFile(filePath):
 
     _img = image.load(filePath)
@@ -54,6 +59,8 @@ def readDDSFile(filePath):
 
 
 def openSPRFile(spr_path):
+
+    global offset_quanty_difference
 
     with open(spr_path, mode='rb') as file:
 
@@ -89,7 +96,6 @@ def openSPRFile(spr_path):
                   break
 
         # Create a numpy array of zeros
-        global offset_quanty_difference
         offset_quanty_difference = np.zeros(sprp_struct.dataCount)
 
         # Get the data info (TX2D)
@@ -140,13 +146,14 @@ def getDXTByte(value):
 
 def openVRAMFile(vram_path, tx2dInfos):
 
+    global vram_fileSize
+
     with open(vram_path, mode="rb") as file:
         # Move to the position 16, where it tells the offset of the file where the texture starts
         file.seek(16)
         texture_offset = int.from_bytes(file.read(bytes2Read), "big")
 
         # The size of the file is in position 20
-        global vram_fileSize
         vram_fileSize = int.from_bytes(file.read(bytes2Read), "big")
 
         # Get each texture
@@ -174,28 +181,22 @@ def actionItem(QModelIndex, imageTexture, encodingImageText, mipMapsImageText, s
     currentSelectedTexture = QModelIndex.row()
     textureName = textureNames[currentSelectedTexture]
 
-    # Textures with the name 'rs' or '_' at the starts, doesn't work
-    if textureName[0] != "_" and textureName[0:2] != "rs":
+    try:
         # Create the dds in disk and open it
         file = open("temp.dds", mode="wb")
         file.write(textures_data[currentSelectedTexture])
         file.close()
         img = readDDSFile("temp.dds")
-        os.remove("temp.dds")
         # Show the image
         imageTexture.setPixmap(QPixmap.fromImage(img))
-    else:
+    except:
         imageTexture.clear()
+
+    os.remove("temp.dds")
 
     encodingImageText.setText("Encoding: %s" % (getDXTByte(tx2dInfos[currentSelectedTexture].dxtEncoding).decode('utf-8')))
     mipMapsImageText.setText("Mipmaps: %s" % (tx2dInfos[currentSelectedTexture].mipMaps))
     sizeImageText.setText("Size: %dx%d" % (tx2dInfos[currentSelectedTexture].width, tx2dInfos[currentSelectedTexture].height))
-
-def removeUncompressedFile(uncompressed_file):
-
-    # Remove the output file if exists, because the script won't work if there is a output file with the same name
-    if os.path.exists(uncompressed_file):
-        os.system('cmd /c ' + "rm \"" + uncompressed_file + "\"")
 
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -236,7 +237,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def actionImportLogic(self):
 
         # Open spr file
-        dds_import_path = QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "DDS file (*.dds)")[0]
+        dds_import_path = QFileDialog.getOpenFileName(self, "Open file", os.path.join(os.path.abspath(os.getcwd()), textureNames[currentSelectedTexture]+".dds"), "DDS file (*.dds)")[0]
         if dds_import_path:
             with open(dds_import_path, mode="rb") as file:
                 # Get the height and width of the modified image
@@ -287,24 +288,19 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def actionOpenLogic(self):
 
+        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, currentSelectedTexture
+
         # Open spr file
-        global spr_file_path_original
         spr_file_path_original = QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "SPR files (*.spr)")[0]
+        # Check if the user has selected an spr format file
         if not os.path.exists(spr_file_path_original):
             msg = QMessageBox()
             msg.setWindowTitle("Error")
             msg.setText("A spr file is needed.")
             msg.exec()
             return
-        global spr_file_path
-        # Execute the script in a command line
-        spr_file_path = spr_file_path_original.replace(".spr","_u.spr")
-        if not os.path.exists(spr_file_path):
-            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
-            os.system('cmd /c ' + args)
 
         # Open vram file
-        global vram_file_path_original
         vram_file_path_original = QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "Texture files (*.vram)")[0]
         if not os.path.exists(vram_file_path_original):
             msg = QMessageBox()
@@ -313,12 +309,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.exec()
             return
 
-        global vram_file_path
-        # Execute the script in a command line
-        vram_file_path = vram_file_path_original.replace(".vram","_u.vram")
-        if not os.path.exists(vram_file_path):
-            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
-            os.system('cmd /c ' + args)
+        # Create a folder where we store the necessary files or delete it
+        if not os.path.exists("temp"):
+            os.mkdir("temp")
+
+        # Execute the script in a command line for the spr file
+        basename = os.path.basename(spr_file_path_original)
+        spr_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".spr","_u.spr"))
+        args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
+        os.system('cmd /c ' + args)
+
+        # Execute the script in a command line for the vram file
+        basename = os.path.basename(vram_file_path_original)
+        vram_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".vram","_u.vram"))
+        args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
+        os.system('cmd /c ' + args)
 
         # Load the data from the files
         sprpDatasInfo.clear()
@@ -329,8 +334,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         openSPRFile(spr_file_path)
         openVRAMFile(vram_file_path, tx2dInfos)
 
-        # Add list names
-        global currentSelectedTexture
+        # Add the names to the list view
         currentSelectedTexture = 0
         model = QStandardItemModel()
         self.listView.setModel(model)
@@ -366,6 +370,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def actionSaveLogic(self):
 
+        global spr_file_path_original, vram_file_path_original, vram_fileSize
+
         if not textures_data:
             msg = QMessageBox()
             msg.setWindowTitle("Warning")
@@ -386,8 +392,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             textures_index_edited.sort()
 
             # modifying the spr file offsets
-            global spr_file_path_original
-            spr_file_path_modified = spr_file_path_original.replace(".spr", "_m.spr")
 
             # Create a copy of the original file
             copyfile(spr_file_path, spr_export_path)
@@ -417,9 +421,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         output_file_spr.seek(4, os.SEEK_CUR)
                         output_file_spr.write(tx2dInfos[i].dataSize.to_bytes(4, byteorder="big"))
 
-            global vram_file_path_original
-            vram_file_path_modified = vram_file_path_original.replace(".vram", "_m.vram")
-
             # replacing textures
             with open(vram_export_path, mode="wb") as output_file:
                 with open(vram_file_path, mode="rb") as input_file:
@@ -444,7 +445,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     output_file.write(data)
 
                     # Modify the bytes in pos 20 that indicates the size of the file
-                    global vram_fileSize
                     vram_fileSize += output_file.tell() - input_file.tell()
                     vram_fileSize = abs(vram_fileSize)
 
@@ -457,17 +457,38 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 output_file.seek(20)
                 output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
 
-            removeUncompressedFile(spr_file_path_modified)
+            # Create the folders where we will move the modified files
+            if not os.path.exists("outputs"):
+                os.mkdir("outputs")
+            basename = os.path.basename(vram_file_path_original).replace(".vram","")
+            path_output_files = os.path.join(os.path.abspath(os.getcwd()), "outputs", basename)
+            if not os.path.exists(path_output_files):
+                os.mkdir(path_output_files)
+
+            # Generate the final files for the game
+            # Output for the spr file
+            basename_spr = os.path.basename(spr_file_path_original)
+            spr_file_path_modified = os.path.join(path_output_files, basename_spr)
+            # Remove the output file if exists. The script fails if there is a file with the same name output
+            if os.path.exists(spr_file_path_modified):
+                os.chmod(spr_file_path_modified, stat.S_IWRITE)
+                os.remove(spr_file_path_modified)
             args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" + spr_file_path_modified + "\""
             os.system('cmd /c ' + args)
 
-            removeUncompressedFile(vram_file_path_modified)
+            # Output for the vram file
+            basename_vram = os.path.basename(vram_file_path_original)
+            vram_file_path_modified = os.path.join(path_output_files, basename_vram)
+            # Remove the output file if exists. The script fails if there is a file with the same name output
+            if os.path.exists(vram_file_path_modified):
+                os.chmod(vram_file_path_modified, stat.S_IWRITE)
+                os.remove(vram_file_path_modified)
             args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_export_path + "\" \"" + vram_file_path_modified + "\""
             os.system('cmd /c ' + args)
 
             msg = QMessageBox()
             msg.setWindowTitle("Message")
-            msg.setText("The files were saved and compressed in %s" % (vram_file_path_modified.replace(".vram","")))
+            msg.setText("The files were saved and compressed in %s" % (path_output_files))
             msg.exec()
 
             # Remove the uncompressed modified files
@@ -475,24 +496,22 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             os.remove(vram_export_path)
 
     def closeEvent(self, event):
-        # Remove the uncompressed files
-        removeUncompressedFile(vram_file_path)
-        removeUncompressedFile(spr_file_path)
-
+        if os.path.exists("temp"):
+            rmtree("temp", onerror=del_rw)
         event.accept()
 
     def actionAuthorLogic(self):
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
-        msg.setText("RB2 character editor 1.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+        msg.setText("RB2 character editor 1.1.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     def actionCreditsLogic(self):
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Credits")
-        msg.setText("To the Raging Blast Modding community and specially for revelation who made the compress/uncompress tool.")
+        msg.setText("To the Raging Blast Modding community and specially to revelation from <a href=https://forum.xentax.com>XeNTaX</a> forum who made the compress/uncompress tool.")
         msg.exec()
 
 if __name__ == "__main__":
