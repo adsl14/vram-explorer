@@ -136,6 +136,8 @@ def openSPRFile(spr_path):
 
 def getDXTByte(value):
 
+    # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
+
     if value == 8:
         return "DXT1".encode()
     elif value == 24 or value == 32:
