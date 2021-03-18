@@ -38,6 +38,21 @@ textures_index_edited = []
 # Quanty of difference between the modifed texture and the old one
 offset_quanty_difference = None
 
+def showDDSImage(imageTexture, texture_data):
+
+    try:
+        # Create the dds in disk and open it
+        file = open("temp.dds", mode="wb")
+        file.write(texture_data)
+        file.close()
+        img = readDDSFile("temp.dds")
+        # Show the image
+        imageTexture.setPixmap(QPixmap.fromImage(img))
+    except:
+        imageTexture.clear()
+
+    os.remove("temp.dds")
+
 def del_rw(action, name, exc):
     os.chmod(name, stat.S_IWRITE)
     os.remove(name)
@@ -140,10 +155,8 @@ def getDXTByte(value):
 
     if value == 8:
         return "DXT1".encode()
-    elif value == 24 or value == 32:
+    elif value == 24 or value == 32 or value == 0:
         return "DXT5".encode()
-    elif value == 0:
-        return "RGBA".encode()
 
 
 def openVRAMFile(vram_path, tx2dInfos):
@@ -183,18 +196,7 @@ def actionItem(QModelIndex, imageTexture, encodingImageText, mipMapsImageText, s
     currentSelectedTexture = QModelIndex.row()
     textureName = textureNames[currentSelectedTexture]
 
-    try:
-        # Create the dds in disk and open it
-        file = open("temp.dds", mode="wb")
-        file.write(textures_data[currentSelectedTexture])
-        file.close()
-        img = readDDSFile("temp.dds")
-        # Show the image
-        imageTexture.setPixmap(QPixmap.fromImage(img))
-    except:
-        imageTexture.clear()
-
-    os.remove("temp.dds")
+    showDDSImage(imageTexture, textures_data[currentSelectedTexture])
 
     encodingImageText.setText("Encoding: %s" % (getDXTByte(tx2dInfos[currentSelectedTexture].dxtEncoding).decode('utf-8')))
     mipMapsImageText.setText("Mipmaps: %s" % (tx2dInfos[currentSelectedTexture].mipMaps))
@@ -283,10 +285,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # Add the index texture that has been modified
                 textures_index_edited.append(currentSelectedTexture)
 
-                # Show texture in the program
-                img = readDDSFile(dds_import_path)
-                # Show the image
-                self.imageTexture.setPixmap(QPixmap.fromImage(img))
+                try:
+                    # Show texture in the program
+                    img = readDDSFile(dds_import_path)
+
+                    # Show the image
+                    self.imageTexture.setPixmap(QPixmap.fromImage(img))
+                except:
+                    self.imageTexture.clear()
 
     def actionOpenLogic(self):
 
@@ -350,13 +356,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.listView.clicked.connect(lambda qModelIdx: actionItem(qModelIdx, self.imageTexture, self.encodingImageText, self.mipMapsImageText, self.sizeImageText))
 
         # Create the dds in disk and open it
-        file = open("temp.dds", mode="wb")
-        file.write(textures_data[0])
-        file.close()
-        img = readDDSFile("temp.dds")
-        os.remove("temp.dds")
-        # Show the image
-        self.imageTexture.setPixmap(QPixmap.fromImage(img))
+        showDDSImage(self.imageTexture, textures_data[0])
 
         # Show the buttons
         self.exportButton.setVisible(True)
@@ -506,7 +506,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
-        msg.setText("RB2 character editor 1.1.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+        msg.setText("RB2 character editor 1.1.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     def actionCreditsLogic(self):
