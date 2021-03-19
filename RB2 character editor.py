@@ -53,6 +53,7 @@ def showDDSImage(imageTexture, texture_data):
 
     os.remove("temp.dds")
 
+
 def del_rw(action, name, exc):
     os.chmod(name, stat.S_IWRITE)
     os.remove(name)
@@ -149,15 +150,24 @@ def openSPRFile(spr_path):
             tx2dInfos.append(tx2D_info)
 
 
+def createHeader(value):
+
+    if value == 8:
+        return bytes.fromhex("04000000"),  "DXT1".encode(),  bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ".strip())
+    elif value == 24 or value == 32:
+        return bytes.fromhex("04000000"),  "DXT5".encode(),  bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ".strip())
+    else:
+        return bytes.fromhex("41000000"), bytes.fromhex("00000000"), bytes.fromhex("20 00 00 00 00 00 FF 00 00 FF 00 00 FF 00 00 00 00 00 00 FF 02 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00".strip())
+
 def getDXTByte(value):
 
     # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
-
     if value == 8:
         return "DXT1".encode()
-    elif value == 24 or value == 32 or value == 0:
+    elif value == 24 or value == 32:
         return "DXT5".encode()
-
+    else:
+        return "RGBA".encode()
 
 def openVRAMFile(vram_path, tx2dInfos):
 
@@ -174,15 +184,13 @@ def openVRAMFile(vram_path, tx2dInfos):
         # Get each texture
         header_1 = "44 44 53 20 7C 00 00 00 07 10 00 00".strip()
         header_1 = bytes.fromhex(header_1)
-        header_3_1 = "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 04 00 00 00 ".strip()
-        header_3_3 = "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ".strip()
-        header_3_1 = bytes.fromhex(header_3_1)
-        header_3_3 = bytes.fromhex(header_3_3)
+        header_3 = "00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 ".strip()
+        header_3 = bytes.fromhex(header_3)
         for tx2dInfo in tx2dInfos:
 
-            header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little')
-            header_3_2 = getDXTByte(tx2dInfo.dxtEncoding)
-            header = header_1 + header_2 + header_3_1 + header_3_2 + header_3_3
+            header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little') + (tx2dInfo.width *tx2dInfo.height).to_bytes(4, 'little')
+            header_4, header_5, header_6 = createHeader(tx2dInfo.dxtEncoding)
+            header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
             file.seek(tx2dInfo.dataOffset + texture_offset)
             data = file.read(tx2dInfo.dataSize)
@@ -194,7 +202,6 @@ def actionItem(QModelIndex, imageTexture, encodingImageText, mipMapsImageText, s
 
     global currentSelectedTexture
     currentSelectedTexture = QModelIndex.row()
-    textureName = textureNames[currentSelectedTexture]
 
     showDDSImage(imageTexture, textures_data[currentSelectedTexture])
 
@@ -251,13 +258,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # Get the dxtencoding
                 file.seek(84)
                 dxtEncoding = file.read(bytes2Read)
+                # In the RGBA file, we got only 0x00 0x00 0x00 0x00, so we have to change the text
+                if int.from_bytes(dxtEncoding, byteorder='big', signed=True) == 0:
+                    dxtEncoding = "RGBA"
+                else:
+                    dxtEncoding = dxtEncoding.decode('utf-8')
                 # Get all the data
                 file.seek(0)
                 data = file.read()
 
             # Get the tx2dinfo of the texture
             tx2dInfo = tx2dInfos[currentSelectedTexture]
-            dxtEncodingOriginal = getDXTByte(tx2dInfo.dxtEncoding)
+            dxtEncodingOriginal = getDXTByte(tx2dInfo.dxtEncoding).decode("utf-8")
             # Check if the size of original and modified one are the same
             if tx2dInfo.width != width or tx2dInfo.height != height:
                 msg = QMessageBox()
@@ -268,7 +280,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             elif dxtEncodingOriginal != dxtEncoding:
                 msg = QMessageBox()
                 msg.setWindowTitle("Error")
-                msg.setText("The encoding for the modified file must be in %s\nYour file is in %s" % (dxtEncodingOriginal.decode("utf-8") , dxtEncoding.decode("utf-8") ))
+                msg.setText("The encoding for the modified file must be in %s\nYour file is in %s" % (dxtEncodingOriginal , dxtEncoding))
                 msg.exec()
             # Can import the texture
             else:
@@ -506,7 +518,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
-        msg.setText("RB2 character editor 1.1.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+        msg.setText("RB2 character editor 1.1.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     def actionCreditsLogic(self):
