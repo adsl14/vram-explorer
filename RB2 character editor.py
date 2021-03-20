@@ -1,67 +1,75 @@
-from lib.RB2_characterEditor_design import *
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
-from PyQt5.QtGui import QImage, QPixmap, QStandardItemModel, QStandardItem
-from lib.STPK_struct import STPK_struct
-from lib.SPRP_struct import SPRP_struct
-from lib.SPRP_DATA_INFO import SPRP_DATA_INFO
-from lib.TX2D_INFO import TX2D_INFO
-
-import os, numpy as np, stat
-from pyglet import image
+import os
+import stat
 from shutil import copyfile, rmtree
+
+import numpy as np
+from PyQt5.QtGui import QImage, QPixmap, QStandardItemModel, QStandardItem
+from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from lib.RB2_characterEditor_design import *
+from lib.SprpDataInfo import SprpDataInfo
+from lib.SprpStruct import SprpStruct
+from lib.StpkStruct import StpkStruct
+from lib.Tx2dInfo import Tx2dInfo
+from pyglet import image
 
 # number of bytes that usually reads the program
 bytes2Read = 4
 # Current selected texture in the list view
-currentSelectedTexture = 0
+current_selected_texture = 0
 
 # Paths where are the files
 spr_file_path_original = ""
 spr_file_path = ""
 vram_file_path_original = ""
 vram_file_path = ""
-sprp_struct = SPRP_struct()
-stpk_struct = STPK_struct()
+sprp_struct = SprpStruct()
+stpk_struct = StpkStruct()
 
 # Meta information (offset to tx2dInfos)
 sprpDatasInfo = []
 # Texture names
 textureNames = []
 # Information of the texture
-tx2dInfos = []
+tx2d_infos = []
 # The textures itslef
 textures_data = []
 # Size of the vram file
-vram_fileSize = 0
+vram_file_size_old = 0
 # Indexes of textures edited
 textures_index_edited = []
 # Quanty of difference between the modifed texture and the old one
-offset_quanty_difference = None
+offset_quanty_difference = np.array(0)
 
-def showDDSImage(imageTexture, texture_data):
 
+def show_dds_image(imagetexture, texture_data):
     try:
         # Create the dds in disk and open it
         file = open("temp.dds", mode="wb")
         file.write(texture_data)
         file.close()
-        img = readDDSFile("temp.dds")
+        img = read_dds_file("temp.dds")
         # Show the image
-        imageTexture.setPixmap(QPixmap.fromImage(img))
-    except:
-        imageTexture.clear()
+        imagetexture.setPixmap(QPixmap.fromImage(img))
+    except OSError:
+        imagetexture.clear()
 
     os.remove("temp.dds")
 
 
-def del_rw(action, name, exc):
-    os.chmod(name, stat.S_IWRITE)
-    os.remove(name)
+def del_rw(name_method, path, error):
+    os.chmod(path, stat.S_IWRITE)
+    os.remove(path)
+
+    return name_method, error
 
 
-def readDDSFile(filePath):
+def read_dds_file(file_path):
+    try:
+        _img = image.load(file_path)
+    except OSError:
+        print("The header of the image is not recognizable")
+        raise OSError
 
-    _img = image.load(filePath)
     tex = _img.get_texture()
     tex = tex.get_image_data()
     _format = tex.format
@@ -74,29 +82,27 @@ def readDDSFile(filePath):
     return img
 
 
-def openSPRFile(spr_path):
-
-    global offset_quanty_difference
+def open_spr_file(spr_path):
 
     with open(spr_path, mode='rb') as file:
 
         # Move the pointer to the pos 16 and get the offset of the header
         file.seek(16)
-        stpk_struct.dataOffset = int.from_bytes(file.read(bytes2Read), "big")
+        stpk_struct.data_offset = int.from_bytes(file.read(bytes2Read), "big")
 
         # Create the sprp_struct instance
-        file.seek(stpk_struct.dataOffset + 20)
-        sprp_struct.typeInfoBase = stpk_struct.dataOffset + 64
-        sprp_struct.stringBase = sprp_struct.typeInfoBase + int.from_bytes(file.read(bytes2Read), "big")
-        file.seek(stpk_struct.dataOffset + 24)
-        sprp_struct.dataInfoBase = sprp_struct.stringBase + int.from_bytes(file.read(bytes2Read), "big")
-        file.seek(stpk_struct.dataOffset + 28)
-        sprp_struct.dataBase = sprp_struct.dataInfoBase + int.from_bytes(file.read(bytes2Read), "big")
-        file.seek(sprp_struct.typeInfoBase + 8)
-        sprp_struct.dataCount = int.from_bytes(file.read(bytes2Read), "big")
+        file.seek(stpk_struct.data_offset + 20)
+        sprp_struct.type_info_base = stpk_struct.data_offset + 64
+        sprp_struct.string_base = sprp_struct.type_info_base + int.from_bytes(file.read(bytes2Read), "big")
+        file.seek(stpk_struct.data_offset + 24)
+        sprp_struct.data_info_base = sprp_struct.string_base + int.from_bytes(file.read(bytes2Read), "big")
+        file.seek(stpk_struct.data_offset + 28)
+        sprp_struct.data_base = sprp_struct.data_info_base + int.from_bytes(file.read(bytes2Read), "big")
+        file.seek(sprp_struct.type_info_base + 8)
+        sprp_struct.data_count = int.from_bytes(file.read(bytes2Read), "big")
 
         # Get the names of each texture
-        file.seek(sprp_struct.stringBase)
+        file.seek(sprp_struct.string_base)
         texture_name = ""
         counter = 0
 
@@ -105,24 +111,25 @@ def openSPRFile(spr_path):
             data = data.decode("ISO-8859-1")
             texture_name += data
             if ".tga" in texture_name:
-              textureNames.append(texture_name[1:].replace(".tga",""))
-              texture_name = ""
-              counter += 1
-              if counter == sprp_struct.dataCount:
-                  break
+                textureNames.append(texture_name[1:].replace(".tga", ""))
+                texture_name = ""
+                counter += 1
+                if counter == sprp_struct.data_count:
+                    break
 
         # Create a numpy array of zeros
-        offset_quanty_difference = np.zeros(sprp_struct.dataCount)
+        global offset_quanty_difference
+        offset_quanty_difference = np.zeros(sprp_struct.data_count)
 
         # Get the data info (TX2D)
-        file.seek(sprp_struct.dataInfoBase)
-        for i in range(0,sprp_struct.dataCount):
-            sprp_data_info = SPRP_DATA_INFO()
+        file.seek(sprp_struct.data_info_base)
+        for i in range(0, sprp_struct.data_count):
+            sprp_data_info = SprpDataInfo()
 
             # Move where the information starts
             file.seek(8, os.SEEK_CUR)
-            sprp_data_info.nameOffset = int.from_bytes(file.read(bytes2Read), "big")
-            sprp_data_info.dataOffset = int.from_bytes(file.read(bytes2Read), "big")
+            sprp_data_info.name_offset = int.from_bytes(file.read(bytes2Read), "big")
+            sprp_data_info.data_offset = int.from_bytes(file.read(bytes2Read), "big")
             sprp_data_info.dataSize = int.from_bytes(file.read(bytes2Read), "big")
             sprpDatasInfo.append(sprp_data_info)
 
@@ -131,36 +138,43 @@ def openSPRFile(spr_path):
 
         # Get the data itself
         for sprpDataInfo in sprpDatasInfo:
-            tx2D_info = TX2D_INFO()
+            tx2_d_info = Tx2dInfo()
 
             # Move where the information starts
-            file.seek(sprp_struct.dataBase + sprpDataInfo.dataOffset)
+            file.seek(sprp_struct.data_base + sprpDataInfo.data_offset)
 
             # Move where the information starts
             file.seek(4, os.SEEK_CUR)
-            tx2D_info.dataOffset = int.from_bytes(file.read(bytes2Read), "big")
+            tx2_d_info.data_offset = int.from_bytes(file.read(bytes2Read), "big")
+            tx2_d_info.data_offset_old = tx2_d_info.data_offset
             file.seek(4, os.SEEK_CUR)
-            tx2D_info.dataSize = int.from_bytes(file.read(bytes2Read), "big")
-            tx2D_info.width = int.from_bytes(file.read(2), "big")
-            tx2D_info.height = int.from_bytes(file.read(2), "big")
+            tx2_d_info.data_size = int.from_bytes(file.read(bytes2Read), "big")
+            tx2_d_info.data_size_old = tx2_d_info.data_size
+            tx2_d_info.width = int.from_bytes(file.read(2), "big")
+            tx2_d_info.height = int.from_bytes(file.read(2), "big")
             file.seek(2, os.SEEK_CUR)
-            tx2D_info.mipMaps = int.from_bytes(file.read(2), "big")
+            tx2_d_info.mip_maps = int.from_bytes(file.read(2), "big")
             file.seek(8, os.SEEK_CUR)
-            tx2D_info.dxtEncoding = int.from_bytes(file.read(1), "big")
-            tx2dInfos.append(tx2D_info)
+            tx2_d_info.dxt_encoding = int.from_bytes(file.read(1), "big")
+            tx2d_infos.append(tx2_d_info)
 
 
-def createHeader(value):
-
+def create_header(value):
     if value == 8:
-        return bytes.fromhex("04000000"),  "DXT1".encode(),  bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ".strip())
+        return bytes.fromhex("04000000"), "DXT1".encode(), bytes.fromhex(
+            "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
+            "00 00 00 00 00 00 ".strip())
     elif value == 24 or value == 32:
-        return bytes.fromhex("04000000"),  "DXT5".encode(),  bytes.fromhex("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ".strip())
+        return bytes.fromhex("04000000"), "DXT5".encode(), bytes.fromhex(
+            "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
+            "00 00 00 00 00 00 ".strip())
     else:
-        return bytes.fromhex("41000000"), bytes.fromhex("00000000"), bytes.fromhex("20 00 00 00 00 00 FF 00 00 FF 00 00 FF 00 00 00 00 00 00 FF 02 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00".strip())
+        return bytes.fromhex("41000000"), bytes.fromhex("00000000"), bytes.fromhex(
+            "20 00 00 00 00 00 FF 00 00 FF 00 00 FF 00 00 00 00 00 00 FF 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
+            "00 00 00 00 00 00".strip())
 
-def getDXTByte(value):
 
+def get_dxt_byte(value):
     # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
     if value == 8:
         return "DXT1".encode()
@@ -169,9 +183,9 @@ def getDXTByte(value):
     else:
         return "RGBA".encode()
 
-def openVRAMFile(vram_path, tx2dInfos):
 
-    global vram_fileSize
+def open_vram_file(vram_path):
+    global vram_file_size_old, tx2d_infos
 
     with open(vram_path, mode="rb") as file:
         # Move to the position 16, where it tells the offset of the file where the texture starts
@@ -179,35 +193,40 @@ def openVRAMFile(vram_path, tx2dInfos):
         texture_offset = int.from_bytes(file.read(bytes2Read), "big")
 
         # The size of the file is in position 20
-        vram_fileSize = int.from_bytes(file.read(bytes2Read), "big")
+        vram_file_size_old = int.from_bytes(file.read(bytes2Read), "big")
 
         # Get each texture
         header_1 = "44 44 53 20 7C 00 00 00 07 10 00 00".strip()
         header_1 = bytes.fromhex(header_1)
-        header_3 = "00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 ".strip()
+        header_3 = "00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " \
+                   "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 ".strip()
         header_3 = bytes.fromhex(header_3)
-        for tx2dInfo in tx2dInfos:
-
-            header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little') + (tx2dInfo.width *tx2dInfo.height).to_bytes(4, 'little')
-            header_4, header_5, header_6 = createHeader(tx2dInfo.dxtEncoding)
+        for tx2dInfo in tx2d_infos:
+            header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little') + (
+                tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
+            header_4, header_5, header_6 = create_header(tx2dInfo.dxt_encoding)
             header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
-            file.seek(tx2dInfo.dataOffset + texture_offset)
-            data = file.read(tx2dInfo.dataSize)
+            file.seek(tx2dInfo.data_offset + texture_offset)
+            data = file.read(tx2dInfo.data_size)
             data = header + data
             textures_data.append(data)
 
 
-def actionItem(QModelIndex, imageTexture, encodingImageText, mipMapsImageText, sizeImageText):
+def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_image_text, size_image_text):
+    global current_selected_texture
 
-    global currentSelectedTexture
-    currentSelectedTexture = QModelIndex.row()
+    if current_selected_texture != q_model_index.row():
+        current_selected_texture = q_model_index.row()
 
-    showDDSImage(imageTexture, textures_data[currentSelectedTexture])
+        show_dds_image(image_texture, textures_data[current_selected_texture])
 
-    encodingImageText.setText("Encoding: %s" % (getDXTByte(tx2dInfos[currentSelectedTexture].dxtEncoding).decode('utf-8')))
-    mipMapsImageText.setText("Mipmaps: %s" % (tx2dInfos[currentSelectedTexture].mipMaps))
-    sizeImageText.setText("Size: %dx%d" % (tx2dInfos[currentSelectedTexture].width, tx2dInfos[currentSelectedTexture].height))
+        encoding_image_text.setText(
+            "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
+        mip_maps_image_text.setText("Mipmaps: %s" % tx2d_infos[current_selected_texture].mip_maps)
+        size_image_text.setText(
+            "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture]
+                                   .height))
 
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -217,17 +236,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.setupUi(self)
 
         # File tab
-        self.actionOpen.triggered.connect(self.actionOpenLogic)
-        self.actionSave.triggered.connect(self.actionSaveLogic)
+        self.actionOpen.triggered.connect(self.action_open_logic)
+        self.actionSave.triggered.connect(self.action_save_logic)
         self.actionClose.triggered.connect(self.close)
 
         # About tab
-        self.actionAuthor.triggered.connect(self.actionAuthorLogic)
-        self.actionCredits.triggered.connect(self.actionCreditsLogic)
+        self.actionAuthor.triggered.connect(self.action_author_logic)
+        self.actionCredits.triggered.connect(self.action_credits_logic)
 
         # Buttons
-        self.exportButton.clicked.connect(self.actionExportLogic)
-        self.importButton.clicked.connect(self.actionImportLogic)
+        self.exportButton.clicked.connect(self.action_export_logic)
+        self.importButton.clicked.connect(self.action_import_logic)
         self.exportButton.setVisible(False)
         self.importButton.setVisible(False)
 
@@ -236,82 +255,92 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.mipMapsImageText.setVisible(False)
         self.sizeImageText.setVisible(False)
 
-    def actionExportLogic(self):
+    def action_export_logic(self):
 
         # Save dds file
-        dds_export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()), textureNames[currentSelectedTexture]+".dds"), "DDS file (*.dds)")[0]
+        dds_export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()),
+                                                                                      textureNames[
+                                                                                          current_selected_texture] +
+                                                                                      ".dds"),
+                                                      "DDS file (*.dds)")[0]
         if dds_export_path:
             file = open(dds_export_path, mode="wb")
-            file.write(textures_data[currentSelectedTexture])
+            file.write(textures_data[current_selected_texture])
             file.close()
 
-    def actionImportLogic(self):
+    def action_import_logic(self):
 
         # Open spr file
-        dds_import_path = QFileDialog.getOpenFileName(self, "Open file", os.path.join(os.path.abspath(os.getcwd()), textureNames[currentSelectedTexture]+".dds"), "DDS file (*.dds)")[0]
+        dds_import_path = QFileDialog.getOpenFileName(self, "Open file",
+                                                      os.path.join(os.path.abspath(os.getcwd()),
+                                                                   textureNames[current_selected_texture] + ".dds"),
+                                                      "DDS file (*.dds)")[0]
         if dds_import_path:
             with open(dds_import_path, mode="rb") as file:
                 # Get the height and width of the modified image
                 file.seek(12)
-                height = int.from_bytes(file.read(bytes2Read),'little')
+                height = int.from_bytes(file.read(bytes2Read), 'little')
                 width = int.from_bytes(file.read(bytes2Read), 'little')
                 # Get the dxtencoding
                 file.seek(84)
-                dxtEncoding = file.read(bytes2Read)
+                dxt_encoding = file.read(bytes2Read)
                 # In the RGBA file, we got only 0x00 0x00 0x00 0x00, so we have to change the text
-                if int.from_bytes(dxtEncoding, byteorder='big', signed=True) == 0:
-                    dxtEncoding = "RGBA"
+                if int.from_bytes(dxt_encoding, byteorder='big', signed=True) == 0:
+                    dxt_encoding = "RGBA"
                 else:
-                    dxtEncoding = dxtEncoding.decode('utf-8')
+                    dxt_encoding = dxt_encoding.decode('utf-8')
                 # Get all the data
                 file.seek(0)
                 data = file.read()
 
             # Get the tx2dinfo of the texture
-            tx2dInfo = tx2dInfos[currentSelectedTexture]
-            dxtEncodingOriginal = getDXTByte(tx2dInfo.dxtEncoding).decode("utf-8")
+            tx2d_info = tx2d_infos[current_selected_texture]
+            dxt_encoding_original = get_dxt_byte(tx2d_info.dxt_encoding).decode("utf-8")
             # Check if the size of original and modified one are the same
-            if tx2dInfo.width != width or tx2dInfo.height != height:
+            if tx2d_info.width != width or tx2d_info.height != height:
                 msg = QMessageBox()
                 msg.setWindowTitle("Error")
-                msg.setText("The size for the modified file must be %dx%d\nYour file is %dx%d" % (tx2dInfo.width, tx2dInfo.height, width, height))
+                msg.setText("The resolution for the modified file must be %dx%d\nYour file is %dx%d" % (
+                    tx2d_info.width, tx2d_info.height, width, height))
                 msg.exec()
             # The original and modified file must be in the same dxtencoding
-            elif dxtEncodingOriginal != dxtEncoding:
+            elif dxt_encoding_original != dxt_encoding:
                 msg = QMessageBox()
                 msg.setWindowTitle("Error")
-                msg.setText("The encoding for the modified file must be in %s\nYour file is in %s" % (dxtEncodingOriginal , dxtEncoding))
+                msg.setText("The encoding for the modified file must be in %s\nYour file is in %s" % (
+                    dxt_encoding_original, dxt_encoding))
                 msg.exec()
             # Can import the texture
             else:
                 # Get the difference in size between original and modified in order to change the offsets
                 len_data = len(data[128:])
-                difference = len_data - tx2dInfos[currentSelectedTexture].dataSize
+                difference = len_data - tx2d_infos[current_selected_texture].data_size
                 if difference != 0:
-                    tx2dInfos[currentSelectedTexture].dataSize = len_data
-                    offset_quanty_difference[currentSelectedTexture] = difference
+                    tx2d_infos[current_selected_texture].data_size = len_data
+                    offset_quanty_difference[current_selected_texture] = difference
 
                 # Change texture in the array
-                textures_data[currentSelectedTexture] = data
+                textures_data[current_selected_texture] = data
 
                 # Add the index texture that has been modified
-                textures_index_edited.append(currentSelectedTexture)
+                textures_index_edited.append(current_selected_texture)
 
                 try:
                     # Show texture in the program
-                    img = readDDSFile(dds_import_path)
+                    img = read_dds_file(dds_import_path)
 
                     # Show the image
                     self.imageTexture.setPixmap(QPixmap.fromImage(img))
-                except:
+                except OSError:
                     self.imageTexture.clear()
 
-    def actionOpenLogic(self):
+    def action_open_logic(self):
 
-        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, currentSelectedTexture
+        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, current_selected_texture
 
         # Open spr file
-        spr_file_path_original = QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "SPR files (*.spr)")[0]
+        spr_file_path_original = \
+            QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "SPR files (*.spr)")[0]
         # Check if the user has selected an spr format file
         if not os.path.exists(spr_file_path_original):
             msg = QMessageBox()
@@ -321,7 +350,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             return
 
         # Open vram file
-        vram_file_path_original = QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "Texture files (*.vram)")[0]
+        vram_file_path_original = \
+            QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "Texture files (*.vram)")[0]
         if not os.path.exists(vram_file_path_original):
             msg = QMessageBox()
             msg.setWindowTitle("Error")
@@ -329,33 +359,37 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.exec()
             return
 
-        # Create a folder where we store the necessary files or delete it
-        if not os.path.exists("temp"):
-            os.mkdir("temp")
+        # Create a folder where we store the necessary files or delete it. If already exists,
+        # we remove every files in it
+        if os.path.exists("temp"):
+            rmtree("temp", onerror=del_rw)
+        os.mkdir("temp")
 
         # Execute the script in a command line for the spr file
         basename = os.path.basename(spr_file_path_original)
-        spr_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".spr","_u.spr"))
-        args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
+        spr_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".spr", "_u.spr"))
+        args = os.path.join("lib",
+                            "dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
         os.system('cmd /c ' + args)
 
         # Execute the script in a command line for the vram file
         basename = os.path.basename(vram_file_path_original)
-        vram_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".vram","_u.vram"))
-        args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
+        vram_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".vram", "_u.vram"))
+        args = os.path.join("lib",
+                            "dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
         os.system('cmd /c ' + args)
 
         # Load the data from the files
         sprpDatasInfo.clear()
         textureNames.clear()
-        tx2dInfos.clear()
+        tx2d_infos.clear()
         textures_data.clear()
         textures_index_edited.clear()
-        openSPRFile(spr_file_path)
-        openVRAMFile(vram_file_path, tx2dInfos)
+        open_spr_file(spr_file_path)
+        open_vram_file(vram_file_path)
 
         # Add the names to the list view
-        currentSelectedTexture = 0
+        current_selected_texture = 0
         model = QStandardItemModel()
         self.listView.setModel(model)
         item_0 = QStandardItem(textureNames[0])
@@ -365,26 +399,33 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             item = QStandardItem(i)
             item.setEditable(False)
             model.appendRow(item)
-        self.listView.clicked.connect(lambda qModelIdx: actionItem(qModelIdx, self.imageTexture, self.encodingImageText, self.mipMapsImageText, self.sizeImageText))
+        self.listView.clicked.connect(
+            lambda q_model_idx: action_item(q_model_idx, self.imageTexture, self.encodingImageText,
+                                            self.mipMapsImageText,
+                                            self.sizeImageText))
 
         # Create the dds in disk and open it
-        showDDSImage(self.imageTexture, textures_data[0])
+        show_dds_image(self.imageTexture, textures_data[0])
 
         # Show the buttons
         self.exportButton.setVisible(True)
         self.importButton.setVisible(True)
 
         # Show the text labels
-        self.encodingImageText.setText("Encoding: %s" % (getDXTByte(tx2dInfos[currentSelectedTexture].dxtEncoding).decode('utf-8')))
-        self.mipMapsImageText.setText("Mipmaps: %d" % (tx2dInfos[currentSelectedTexture].mipMaps))
-        self.sizeImageText.setText("Size: %dx%d" % (tx2dInfos[currentSelectedTexture].width, tx2dInfos[currentSelectedTexture].height))
+        self.encodingImageText.setText(
+            "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
+        self.mipMapsImageText.setText("Mipmaps: %d" % tx2d_infos[current_selected_texture].mip_maps)
+        self.sizeImageText.setText(
+            "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture]
+                                   .height))
         self.encodingImageText.setVisible(True)
         self.mipMapsImageText.setVisible(True)
         self.sizeImageText.setVisible(True)
 
-    def actionSaveLogic(self):
+    @staticmethod
+    def action_save_logic():
 
-        global spr_file_path_original, vram_file_path_original, vram_fileSize
+        global spr_file_path_original, vram_file_path_original
 
         if not textures_data:
             msg = QMessageBox()
@@ -397,10 +438,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.setText("The character hasn't been modified.")
             msg.exec()
         else:
-
             # Default paths
             spr_export_path = spr_file_path.replace(".spr", "_m.spr")
-            vram_export_path = vram_file_path.replace(".vram","_m.vram")
+            vram_export_path = vram_file_path.replace(".vram", "_m.vram")
 
             # Sort the indexes of the modified textures
             textures_index_edited.sort()
@@ -412,33 +452,29 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Update the offsets
             first_index_texture_edited = textures_index_edited[0]
-            quanty_aux = 0
-            if first_index_texture_edited + 1 < sprp_struct.dataCount:
-                tx2dInfos[first_index_texture_edited].dataOffsetOld = tx2dInfos[first_index_texture_edited].dataOffset
+            if first_index_texture_edited + 1 < sprp_struct.data_count:
                 quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
-                for i in range(first_index_texture_edited + 1, sprp_struct.dataCount):
-                    tx2dInfos[i].dataOffsetOld = tx2dInfos[i].dataOffset
-                    tx2dInfos[i].dataOffset += quanty_aux
-                    tx2dInfos[i].dataOffset = int(abs(tx2dInfos[i].dataOffset))
+                for i in range(first_index_texture_edited + 1, sprp_struct.data_count):
+                    tx2d_infos[i].data_offset += quanty_aux
+                    tx2d_infos[i].data_offset = int(abs(tx2d_infos[i].data_offset))
                     quanty_aux += offset_quanty_difference[i]
 
             with open(spr_export_path, mode="rb+") as output_file_spr:
                 # Move where the information starts to the first modified texture
-                output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[first_index_texture_edited].dataOffset + 12)
-                output_file_spr.write(tx2dInfos[first_index_texture_edited].dataSize.to_bytes(4, byteorder="big"))
+                output_file_spr.seek(sprp_struct.data_base + sprpDatasInfo[first_index_texture_edited].data_offset + 12)
+                output_file_spr.write(tx2d_infos[first_index_texture_edited].data_size.to_bytes(4, byteorder="big"))
                 first_index_texture_edited += 1
-                if first_index_texture_edited < sprp_struct.dataCount:
-                    for i in range(first_index_texture_edited,sprp_struct.dataCount):
+                if first_index_texture_edited < sprp_struct.data_count:
+                    for i in range(first_index_texture_edited, sprp_struct.data_count):
                         # Move where the information starts to the next textures
-                        output_file_spr.seek(sprp_struct.dataBase + sprpDatasInfo[i].dataOffset + 4)
-                        output_file_spr.write(tx2dInfos[i].dataOffset.to_bytes(4, byteorder="big"))
+                        output_file_spr.seek(sprp_struct.data_base + sprpDatasInfo[i].data_offset + 4)
+                        output_file_spr.write(tx2d_infos[i].data_offset.to_bytes(4, byteorder="big"))
                         output_file_spr.seek(4, os.SEEK_CUR)
-                        output_file_spr.write(tx2dInfos[i].dataSize.to_bytes(4, byteorder="big"))
+                        output_file_spr.write(tx2d_infos[i].data_size.to_bytes(4, byteorder="big"))
 
             # replacing textures
             with open(vram_export_path, mode="wb") as output_file:
                 with open(vram_file_path, mode="rb") as input_file:
-
                     # Move to the position 16, where it tells the offset of the file where the texture starts
                     data = input_file.read(16)
                     output_file.write(data)
@@ -449,84 +485,88 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                     # Get each offset texture and write over the original file
                     for texture_index in textures_index_edited:
-                        tx2dInfo = tx2dInfos[texture_index]
-                        data = input_file.read(abs(tx2dInfo.dataOffsetOld + texture_offset - input_file.tell()))
+                        tx2d_info = tx2d_infos[texture_index]
+                        data = input_file.read(abs(tx2d_info.data_offset_old + texture_offset - input_file.tell()))
                         output_file.write(data)
-                        input_file.seek(tx2dInfo.dataSize - int(offset_quanty_difference[texture_index]), os.SEEK_CUR)
+                        input_file.seek(tx2d_info.data_size_old, os.SEEK_CUR)
                         output_file.write(textures_data[texture_index][128:])
 
                     data = input_file.read()
                     output_file.write(data)
 
                     # Modify the bytes in pos 20 that indicates the size of the file
-                    vram_fileSize += output_file.tell() - input_file.tell()
-                    vram_fileSize = abs(vram_fileSize)
+                    vram_file_size = abs(vram_file_size_old + output_file.tell() - input_file.tell())
 
             # Change the header of pos 256 in spr file because in that place indicates the size of the final output file
             with open(spr_export_path, mode="rb+") as output_file:
-                output_file.seek(stpk_struct.dataOffset + 48)
-                output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
+                output_file.seek(stpk_struct.data_offset + 48)
+                output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
             # Change the header of pos 20 in vram file because that place indicates the size of the final output file
             with open(vram_export_path, mode="rb+") as output_file:
                 output_file.seek(20)
-                output_file.write(vram_fileSize.to_bytes(4, byteorder='big'))
+                output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
 
             # Create the folders where we will move the modified files
             if not os.path.exists("outputs"):
                 os.mkdir("outputs")
-            basename = os.path.basename(vram_file_path_original).replace(".vram","")
+            basename = os.path.basename(vram_file_path_original).replace(".vram", "")
             path_output_files = os.path.join(os.path.abspath(os.getcwd()), "outputs", basename)
-            if not os.path.exists(path_output_files):
-                os.mkdir(path_output_files)
+            # Remove everything in the folder of the modified files
+            if os.path.exists(path_output_files):
+                rmtree(path_output_files, onerror=del_rw)
+            os.mkdir(path_output_files)
 
             # Generate the final files for the game
             # Output for the spr file
             basename_spr = os.path.basename(spr_file_path_original)
             spr_file_path_modified = os.path.join(path_output_files, basename_spr)
-            # Remove the output file if exists. The script fails if there is a file with the same name output
-            if os.path.exists(spr_file_path_modified):
-                os.chmod(spr_file_path_modified, stat.S_IWRITE)
-                os.remove(spr_file_path_modified)
-            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" + spr_file_path_modified + "\""
+            args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" \
+                                                                + spr_file_path_modified + "\""
             os.system('cmd /c ' + args)
 
             # Output for the vram file
             basename_vram = os.path.basename(vram_file_path_original)
             vram_file_path_modified = os.path.join(path_output_files, basename_vram)
-            # Remove the output file if exists. The script fails if there is a file with the same name output
-            if os.path.exists(vram_file_path_modified):
-                os.chmod(vram_file_path_modified, stat.S_IWRITE)
-                os.remove(vram_file_path_modified)
-            args = os.path.join("lib","dbrb_compressor.exe") + " \"" + vram_export_path + "\" \"" + vram_file_path_modified + "\""
+            args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + vram_export_path \
+                                                                + "\" \"" + vram_file_path_modified + "\" "
             os.system('cmd /c ' + args)
 
-            msg = QMessageBox()
-            msg.setWindowTitle("Message")
-            msg.setText("The files were saved and compressed in %s" % (path_output_files))
-            msg.exec()
+            # Reset save again until user modify one texture
+            textures_index_edited.clear()
 
             # Remove the uncompressed modified files
             os.remove(spr_export_path)
             os.remove(vram_export_path)
+
+            msg = QMessageBox()
+            msg.setWindowTitle("Message")
+            msg.setText("The files were saved and compressed in %s" % path_output_files)
+            msg.exec()
 
     def closeEvent(self, event):
         if os.path.exists("temp"):
             rmtree("temp", onerror=del_rw)
         event.accept()
 
-    def actionAuthorLogic(self):
+    @staticmethod
+    def action_author_logic():
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
-        msg.setText("RB2 character editor 1.1.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+        msg.setText(
+            "RB2 character editor 1.1.4 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
-    def actionCreditsLogic(self):
+    @staticmethod
+    def action_credits_logic():
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Credits")
-        msg.setText("To the Raging Blast Modding community and specially to revelation from <a href=https://forum.xentax.com>XeNTaX</a> forum who made the compress/uncompress tool.")
+        msg.setText(
+            'To the Raging Blast Modding community and specially to revelation from <a '
+            'href=https://forum.xentax.com>XeNTaX</a> forum who made the compress/uncompress tool.')
         msg.exec()
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])

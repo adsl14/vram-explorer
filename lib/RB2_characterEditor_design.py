@@ -102,7 +102,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 character editor 1.1.2"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 character editor 1.1.4"))
         self.exportButton.setText(_translate("MainWindow", "E&xport"))
         self.importButton.setText(_translate("MainWindow", "I&mport"))
         self.menuFIle.setTitle(_translate("MainWindow", "&File"))
