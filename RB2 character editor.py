@@ -345,8 +345,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # Change texture in the array
                 textures_data[current_selected_texture] = data
 
-                # Add the index texture that has been modified
-                textures_index_edited.append(current_selected_texture)
+                # Add the index texture that has been modified (if it was added before, we won't added twice)
+                if current_selected_texture not in textures_index_edited:
+                    textures_index_edited.append(current_selected_texture)
 
                 try:
                     # Show texture in the program
@@ -483,21 +484,26 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # Check if is the last texture modified and there is no more textures in the bottom
                 if first_index_texture_edited + 1 < sprp_struct.data_count:
                     quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
+                    offset_quanty_difference[first_index_texture_edited] = 0
                     first_index_texture_edited += 1
                     for i in range(first_index_texture_edited, sprp_struct.data_count):
+
                         # Move where the information starts to the next textures
                         output_file_spr.seek(sprp_struct.data_base + sprpDatasInfo[i].data_offset + 4)
-                        output_file_spr.write(int(abs(tx2d_infos[i].data_offset + quanty_aux))
-                                              .to_bytes(4, byteorder="big"))
+                        # Update the offset
+                        tx2d_infos[i].data_offset += quanty_aux
+                        output_file_spr.write(int(abs(tx2d_infos[i].data_offset)).to_bytes(4, byteorder="big"))
                         output_file_spr.seek(4, os.SEEK_CUR)
+
                         # Change the size only if they are differents.
                         # Because maybe is the same texture and don't need to modify
                         if tx2d_infos[i].data_size != tx2d_infos[i].data_size_old:
                             output_file_spr.write(tx2d_infos[i].data_size.to_bytes(4, byteorder="big"))
 
-                        # Increment the difference only if the difference is not 0
+                        # Increment the difference only if the difference is not 0 and reset the offset differency array
                         if offset_quanty_difference[i] != 0:
                             quanty_aux += offset_quanty_difference[i]
+                            offset_quanty_difference[i] = 0
 
             # replacing textures
             with open(vram_export_path, mode="wb") as output_file:
@@ -576,7 +582,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 character editor 1.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 character editor 1.2.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
