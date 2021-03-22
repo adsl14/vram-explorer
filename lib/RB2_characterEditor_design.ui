@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>841</width>
-    <height>718</height>
+    <height>746</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -17,7 +17,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>RB2 character editor 1.1.4</string>
+   <string>RB2 character editor 1.2</string>
   </property>
   <property name="tabShape">
    <enum>QTabWidget::Rounded</enum>
@@ -83,7 +83,7 @@
          </rect>
         </property>
         <property name="text">
-         <string>E&amp;xport</string>
+         <string>E&amp;xport...</string>
         </property>
        </widget>
        <widget class="QPushButton" name="importButton">
@@ -96,7 +96,7 @@
          </rect>
         </property>
         <property name="text">
-         <string>I&amp;mport</string>
+         <string>I&amp;mport...</string>
         </property>
        </widget>
        <widget class="QLabel" name="sizeImageText">
@@ -150,6 +150,19 @@
       </widget>
      </item>
     </layout>
+   </widget>
+   <widget class="QPushButton" name="exportAllButton">
+    <property name="geometry">
+     <rect>
+      <x>90</x>
+      <y>680</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Export all</string>
+    </property>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">

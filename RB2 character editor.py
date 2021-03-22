@@ -11,6 +11,7 @@ from lib.SprpStruct import SprpStruct
 from lib.StpkStruct import StpkStruct
 from lib.Tx2dInfo import Tx2dInfo
 from pyglet import image
+from datetime import datetime
 
 # number of bytes that usually reads the program
 bytes2Read = 4
@@ -83,7 +84,6 @@ def read_dds_file(file_path):
 
 
 def open_spr_file(spr_path):
-
     with open(spr_path, mode='rb') as file:
 
         # Move the pointer to the pos 16 and get the offset of the header
@@ -203,7 +203,7 @@ def open_vram_file(vram_path):
         header_3 = bytes.fromhex(header_3)
         for tx2dInfo in tx2d_infos:
             header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little') + (
-                tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
+                    tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
             header_4, header_5, header_6 = create_header(tx2dInfo.dxt_encoding)
             header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
@@ -246,8 +246,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Buttons
         self.exportButton.clicked.connect(self.action_export_logic)
+        self.exportAllButton.clicked.connect(self.action_export_all_logic)
         self.importButton.clicked.connect(self.action_import_logic)
         self.exportButton.setVisible(False)
+        self.exportAllButton.setVisible(False)
         self.importButton.setVisible(False)
 
         # Labels
@@ -267,6 +269,27 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             file = open(dds_export_path, mode="wb")
             file.write(textures_data[current_selected_texture])
             file.close()
+
+    @staticmethod
+    def action_export_all_logic():
+
+        # Create folder
+        if not os.path.exists("textures"):
+            os.mkdir("textures")
+        name_folder = os.path.basename(vram_file_path_original).replace(".vram", "")
+        dds_folder_export_path = os.path.join(os.path.abspath(os.getcwd()), "textures", name_folder)
+        if not os.path.exists(dds_folder_export_path):
+            os.mkdir(dds_folder_export_path)
+
+        for i in range(0, sprp_struct.data_count):
+            file = open(os.path.join(dds_folder_export_path, textureNames[i] + ".dds"), mode="wb")
+            file.write(textures_data[i])
+            file.close()
+
+        msg = QMessageBox()
+        msg.setWindowTitle("Message")
+        msg.setText("All the textures were exported in %s." % dds_folder_export_path)
+        msg.exec()
 
     def action_import_logic(self):
 
@@ -409,6 +432,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Show the buttons
         self.exportButton.setVisible(True)
+        self.exportAllButton.setVisible(True)
         self.importButton.setVisible(True)
 
         # Show the text labels
@@ -451,26 +475,29 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             copyfile(spr_file_path, spr_export_path)
 
             # Update the offsets
-            first_index_texture_edited = textures_index_edited[0]
-            if first_index_texture_edited + 1 < sprp_struct.data_count:
-                quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
-                for i in range(first_index_texture_edited + 1, sprp_struct.data_count):
-                    tx2d_infos[i].data_offset += quanty_aux
-                    tx2d_infos[i].data_offset = int(abs(tx2d_infos[i].data_offset))
-                    quanty_aux += offset_quanty_difference[i]
-
             with open(spr_export_path, mode="rb+") as output_file_spr:
-                # Move where the information starts to the first modified texture
+                first_index_texture_edited = textures_index_edited[0]
+                # Move where the information starts to the first modified texture and change the size
                 output_file_spr.seek(sprp_struct.data_base + sprpDatasInfo[first_index_texture_edited].data_offset + 12)
                 output_file_spr.write(tx2d_infos[first_index_texture_edited].data_size.to_bytes(4, byteorder="big"))
-                first_index_texture_edited += 1
-                if first_index_texture_edited < sprp_struct.data_count:
+                # Check if is the last texture modified and there is no more textures in the bottom
+                if first_index_texture_edited + 1 < sprp_struct.data_count:
+                    quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
+                    first_index_texture_edited += 1
                     for i in range(first_index_texture_edited, sprp_struct.data_count):
                         # Move where the information starts to the next textures
                         output_file_spr.seek(sprp_struct.data_base + sprpDatasInfo[i].data_offset + 4)
-                        output_file_spr.write(tx2d_infos[i].data_offset.to_bytes(4, byteorder="big"))
+                        output_file_spr.write(int(abs(tx2d_infos[i].data_offset + quanty_aux))
+                                              .to_bytes(4, byteorder="big"))
                         output_file_spr.seek(4, os.SEEK_CUR)
-                        output_file_spr.write(tx2d_infos[i].data_size.to_bytes(4, byteorder="big"))
+                        # Change the size only if they are differents.
+                        # Because maybe is the same texture and don't need to modify
+                        if tx2d_infos[i].data_size != tx2d_infos[i].data_size_old:
+                            output_file_spr.write(tx2d_infos[i].data_size.to_bytes(4, byteorder="big"))
+
+                        # Increment the difference only if the difference is not 0
+                        if offset_quanty_difference[i] != 0:
+                            quanty_aux += offset_quanty_difference[i]
 
             # replacing textures
             with open(vram_export_path, mode="wb") as output_file:
@@ -506,14 +533,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 output_file.seek(20)
                 output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
 
-            # Create the folders where we will move the modified files
+            basename = os.path.basename(vram_file_path_original) \
+                .replace(".vram", datetime.now().strftime("_%d-%m-%Y_%H-%M-%S"))
+            path_output_files = os.path.join(os.path.abspath(os.getcwd()), "outputs", basename)
+            # Create the folder where we save the modified files
             if not os.path.exists("outputs"):
                 os.mkdir("outputs")
-            basename = os.path.basename(vram_file_path_original).replace(".vram", "")
-            path_output_files = os.path.join(os.path.abspath(os.getcwd()), "outputs", basename)
-            # Remove everything in the folder of the modified files
-            if os.path.exists(path_output_files):
-                rmtree(path_output_files, onerror=del_rw)
             os.mkdir(path_output_files)
 
             # Generate the final files for the game
@@ -530,9 +555,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + vram_export_path \
                                                                 + "\" \"" + vram_file_path_modified + "\" "
             os.system('cmd /c ' + args)
-
-            # Reset save again until user modify one texture
-            textures_index_edited.clear()
 
             # Remove the uncompressed modified files
             os.remove(spr_export_path)
@@ -554,7 +576,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 character editor 1.1.4 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 character editor 1.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod

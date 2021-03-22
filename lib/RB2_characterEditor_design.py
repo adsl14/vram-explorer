@@ -11,7 +11,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(841, 718)
+        MainWindow.resize(841, 746)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -67,6 +67,9 @@ class Ui_MainWindow(object):
         self.mipMapsImageText.setAlignment(QtCore.Qt.AlignCenter)
         self.mipMapsImageText.setObjectName("mipMapsImageText")
         self.horizontalLayout.addWidget(self.frame)
+        self.exportAllButton = QtWidgets.QPushButton(self.centralwidget)
+        self.exportAllButton.setGeometry(QtCore.QRect(90, 680, 75, 23))
+        self.exportAllButton.setObjectName("exportAllButton")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 841, 21))
@@ -102,9 +105,10 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 character editor 1.1.4"))
-        self.exportButton.setText(_translate("MainWindow", "E&xport"))
-        self.importButton.setText(_translate("MainWindow", "I&mport"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 character editor 1.2"))
+        self.exportButton.setText(_translate("MainWindow", "E&xport..."))
+        self.importButton.setText(_translate("MainWindow", "I&mport..."))
+        self.exportAllButton.setText(_translate("MainWindow", "Export all"))
         self.menuFIle.setTitle(_translate("MainWindow", "&File"))
         self.menuAbout.setTitle(_translate("MainWindow", "About"))
         self.actionOpen.setText(_translate("MainWindow", "O&pen..."))
@@ -117,14 +121,4 @@ class Ui_MainWindow(object):
         self.actionAuthor.setShortcut(_translate("MainWindow", "Ctrl+A"))
         self.actionCredits.setText(_translate("MainWindow", "C&redits"))
         self.actionCredits.setShortcut(_translate("MainWindow", "Ctrl+C"))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    sys.exit(app.exec_())
 
