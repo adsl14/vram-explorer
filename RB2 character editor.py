@@ -102,16 +102,15 @@ def open_spr_file(spr_path):
         sprp_struct.data_count = int.from_bytes(file.read(bytes2Read), "big")
 
         # Get the names of each texture
-        file.seek(sprp_struct.string_base)
+        file.seek(sprp_struct.string_base + 1)
         texture_name = ""
         counter = 0
 
         while True:
             data = file.read(1)
-            data = data.decode("ISO-8859-1")
-            texture_name += data
-            if ".tga" in texture_name:
-                textureNames.append(texture_name[1:].replace(".tga", ""))
+            texture_name += data.decode('utf-8')
+            if data == bytes.fromhex('00'):
+                textureNames.append(texture_name[:-5])
                 texture_name = ""
                 counter += 1
                 if counter == sprp_struct.data_count:
@@ -582,7 +581,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 character editor 1.2.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 character editor 1.2.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
