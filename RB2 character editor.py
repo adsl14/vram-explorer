@@ -17,6 +17,8 @@ from datetime import datetime
 bytes2Read = 4
 # Current selected texture in the list view
 current_selected_texture = 0
+# Temp folder name
+temp_folder = "temp_" + datetime.now().strftime("_%d-%m-%Y_%H-%M-%S")
 
 # Paths where are the files
 spr_file_path_original = ""
@@ -384,20 +386,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Create a folder where we store the necessary files or delete it. If already exists,
         # we remove every files in it
-        if os.path.exists("temp"):
-            rmtree("temp", onerror=del_rw)
-        os.mkdir("temp")
+        if os.path.exists(temp_folder):
+            rmtree(temp_folder, onerror=del_rw)
+        os.mkdir(temp_folder)
 
         # Execute the script in a command line for the spr file
         basename = os.path.basename(spr_file_path_original)
-        spr_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".spr", "_u.spr"))
+        spr_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".spr", "_u.spr"))
         args = os.path.join("lib",
                             "dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
         os.system('cmd /c ' + args)
 
         # Execute the script in a command line for the vram file
         basename = os.path.basename(vram_file_path_original)
-        vram_file_path = os.path.join(os.path.abspath(os.getcwd()), "temp", basename.replace(".vram", "_u.vram"))
+        vram_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".vram", "_u.vram"))
         args = os.path.join("lib",
                             "dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
         os.system('cmd /c ' + args)
@@ -571,8 +573,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.exec()
 
     def closeEvent(self, event):
-        if os.path.exists("temp"):
-            rmtree("temp", onerror=del_rw)
+        if os.path.exists(temp_folder):
+            rmtree(temp_folder, onerror=del_rw)
         event.accept()
 
     @staticmethod
@@ -581,7 +583,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 character editor 1.2.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 character editor 1.2.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
