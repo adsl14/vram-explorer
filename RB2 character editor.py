@@ -1,6 +1,6 @@
 import os
 import stat
-from shutil import copyfile, rmtree
+from shutil import copyfile, rmtree, move
 
 import numpy as np
 from PyQt5.QtGui import QImage, QPixmap, QStandardItemModel, QStandardItem
@@ -12,6 +12,11 @@ from lib.StpkStruct import StpkStruct
 from lib.Tx2dInfo import Tx2dInfo
 from pyglet import image
 from datetime import datetime
+
+# types of spr file
+# Character file
+STPZ0 = "5354505a30"
+character_file = False
 
 # number of bytes that usually reads the program
 bytes2Read = 4
@@ -85,11 +90,11 @@ def read_dds_file(file_path):
     return img
 
 
-def open_spr_file(spr_path):
+def open_spr_file(spr_path, start_pointer):
     with open(spr_path, mode='rb') as file:
 
         # Move the pointer to the pos 16 and get the offset of the header
-        file.seek(16)
+        file.seek(start_pointer)
         stpk_struct.data_offset = int.from_bytes(file.read(bytes2Read), "big")
 
         # Create the sprp_struct instance
@@ -107,16 +112,27 @@ def open_spr_file(spr_path):
         file.seek(sprp_struct.string_base + 1)
         texture_name = ""
         counter = 0
+        record_byte = True
 
         while True:
             data = file.read(1)
-            texture_name += data.decode('utf-8')
-            if data == bytes.fromhex('00'):
-                textureNames.append(texture_name[:-5])
-                texture_name = ""
-                counter += 1
-                if counter == sprp_struct.data_count:
-                    break
+            if record_byte:
+                if data == bytes.fromhex('2E'):
+                    textureNames.append(texture_name)
+                    texture_name = ""
+                    counter += 1
+                    if counter == sprp_struct.data_count:
+                        break
+                    record_byte = False
+                    continue
+                # If in the middle of the string there is a '00' value, we replace it with '_' in hex
+                elif data == bytes.fromhex('00'):
+                    data = "_".encode()
+
+                texture_name += data.decode('utf-8')
+            else:
+                if data == bytes.fromhex('00'):
+                    record_byte = True
 
         # Create a numpy array of zeros
         global offset_quanty_difference
@@ -185,7 +201,7 @@ def get_dxt_byte(value):
         return "RGBA".encode()
 
 
-def open_vram_file(vram_path):
+def open_vram_character_file(vram_path):
     global vram_file_size_old, tx2d_infos
 
     with open(vram_path, mode="rb") as file:
@@ -195,6 +211,34 @@ def open_vram_file(vram_path):
 
         # The size of the file is in position 20
         vram_file_size_old = int.from_bytes(file.read(bytes2Read), "big")
+
+        # Get each texture
+        header_1 = "44 44 53 20 7C 00 00 00 07 10 00 00".strip()
+        header_1 = bytes.fromhex(header_1)
+        header_3 = "00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " \
+                   "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 ".strip()
+        header_3 = bytes.fromhex(header_3)
+        for tx2dInfo in tx2d_infos:
+            header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little') + (
+                    tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
+            header_4, header_5, header_6 = create_header(tx2dInfo.dxt_encoding)
+            header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
+
+            file.seek(tx2dInfo.data_offset + texture_offset)
+            data = file.read(tx2dInfo.data_size)
+            data = header + data
+            textures_data.append(data)
+
+
+def open_vram_file(vram_path):
+    global vram_file_size_old, tx2d_infos
+
+    with open(vram_path, mode="rb") as file:
+        # Move to the position 0, where it tells the offset of the file where the texture starts
+        texture_offset = 0
+
+        # The size of the file is the size of the texture
+        vram_file_size_old = tx2d_infos[0].data_size
 
         # Get each texture
         header_1 = "44 44 53 20 7C 00 00 00 07 10 00 00".strip()
@@ -361,7 +405,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def action_open_logic(self):
 
-        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, current_selected_texture
+        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, current_selected_texture, character_file
 
         # Open spr file
         spr_file_path_original = \
@@ -373,6 +417,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.setText("A spr file is needed.")
             msg.exec()
             return
+        # Check if the user has selected an spr character file
+        with open(spr_file_path_original, mode="rb") as spr_file:
+            type_file = spr_file.read(4)
+            spr_file.seek(20)
+            type_file = (type_file + spr_file.read(1)).hex()
+            if type_file == STPZ0:
+                character_file = True
 
         # Open vram file
         vram_file_path_original = \
@@ -384,34 +435,46 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.exec()
             return
 
-        # Create a folder where we store the necessary files or delete it. If already exists,
-        # we remove every files in it
-        if os.path.exists(temp_folder):
-            rmtree(temp_folder, onerror=del_rw)
-        os.mkdir(temp_folder)
-
-        # Execute the script in a command line for the spr file
-        basename = os.path.basename(spr_file_path_original)
-        spr_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".spr", "_u.spr"))
-        args = os.path.join("lib",
-                            "dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
-        os.system('cmd /c ' + args)
-
-        # Execute the script in a command line for the vram file
-        basename = os.path.basename(vram_file_path_original)
-        vram_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".vram", "_u.vram"))
-        args = os.path.join("lib",
-                            "dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
-        os.system('cmd /c ' + args)
-
-        # Load the data from the files
+        # Clean the variables
         sprpDatasInfo.clear()
         textureNames.clear()
         tx2d_infos.clear()
         textures_data.clear()
         textures_index_edited.clear()
-        open_spr_file(spr_file_path)
-        open_vram_file(vram_file_path)
+
+        # Convert spr and vram files if we're dealing with character file
+        if character_file:
+            # Create a folder where we store the necessary files or delete it. If already exists,
+            # we remove every files in it
+            if os.path.exists(temp_folder):
+                rmtree(temp_folder, onerror=del_rw)
+            os.mkdir(temp_folder)
+
+            # Execute the script in a command line for the spr file
+            basename = os.path.basename(spr_file_path_original)
+            spr_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".spr", "_u.spr"))
+            args = os.path.join("lib",
+                                "dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
+            os.system('cmd /c ' + args)
+
+            # Execute the script in a command line for the vram file
+            basename = os.path.basename(vram_file_path_original)
+            vram_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".vram", "_u.vram"))
+            args = os.path.join("lib",
+                                "dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
+            os.system('cmd /c ' + args)
+
+            # Load the data from the files
+            open_spr_file(spr_file_path, 16)
+            open_vram_character_file(vram_file_path)
+
+        # Generic spr file. Don't need to convert
+        else:
+            spr_file_path = spr_file_path_original
+            vram_file_path = vram_file_path_original
+            open_spr_file(spr_file_path, 12)
+            open_vram_file(vram_file_path)
+
 
         # Add the names to the list view
         current_selected_texture = 0
@@ -464,14 +527,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.setText("The character hasn't been modified.")
             msg.exec()
         else:
+
+            # Create the folder where we save the modified files
+            basename = os.path.basename(vram_file_path_original) \
+                .replace(".vram", datetime.now().strftime("_%d-%m-%Y_%H-%M-%S"))
+            path_output_files = os.path.join(os.path.abspath(os.getcwd()), "outputs", basename)
+            if not os.path.exists("outputs"):
+                os.mkdir("outputs")
+            os.mkdir(path_output_files)
+
             # Default paths
             spr_export_path = spr_file_path.replace(".spr", "_m.spr")
             vram_export_path = vram_file_path.replace(".vram", "_m.vram")
 
             # Sort the indexes of the modified textures
             textures_index_edited.sort()
-
-            # modifying the spr file offsets
 
             # Create a copy of the original file
             copyfile(spr_file_path, spr_export_path)
@@ -509,13 +579,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             # replacing textures
             with open(vram_export_path, mode="wb") as output_file:
                 with open(vram_file_path, mode="rb") as input_file:
-                    # Move to the position 16, where it tells the offset of the file where the texture starts
-                    data = input_file.read(16)
-                    output_file.write(data)
 
-                    data = input_file.read(bytes2Read)
-                    output_file.write(data)
-                    texture_offset = int.from_bytes(data, "big")
+                    # If we're dealing with a vram character file
+                    if character_file:
+                        # Move to the position 16, where it tells the offset of the file where the texture starts
+                        data = input_file.read(16)
+                        output_file.write(data)
+
+                        data = input_file.read(bytes2Read)
+                        output_file.write(data)
+                        texture_offset = int.from_bytes(data, "big")
+                    else:
+                        texture_offset = 0
 
                     # Get each offset texture and write over the original file
                     for texture_index in textures_index_edited:
@@ -535,37 +610,42 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             with open(spr_export_path, mode="rb+") as output_file:
                 output_file.seek(stpk_struct.data_offset + 48)
                 output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
-            # Change the header of pos 20 in vram file because that place indicates the size of the final output file
-            with open(vram_export_path, mode="rb+") as output_file:
-                output_file.seek(20)
-                output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
 
-            basename = os.path.basename(vram_file_path_original) \
-                .replace(".vram", datetime.now().strftime("_%d-%m-%Y_%H-%M-%S"))
-            path_output_files = os.path.join(os.path.abspath(os.getcwd()), "outputs", basename)
-            # Create the folder where we save the modified files
-            if not os.path.exists("outputs"):
-                os.mkdir("outputs")
-            os.mkdir(path_output_files)
+            # If we're dealing with a vram character file
+            if character_file:
+                # Change the header of pos 20 in vram file because that place indicates the size of the final output file
+                with open(vram_export_path, mode="rb+") as output_file:
+                    output_file.seek(20)
+                    output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
 
-            # Generate the final files for the game
-            # Output for the spr file
-            basename_spr = os.path.basename(spr_file_path_original)
-            spr_file_path_modified = os.path.join(path_output_files, basename_spr)
-            args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" \
-                                                                + spr_file_path_modified + "\""
-            os.system('cmd /c ' + args)
+                # Generate the final files for the game
+                # Output for the spr file
+                basename_spr = os.path.basename(spr_file_path_original)
+                spr_file_path_modified = os.path.join(path_output_files, basename_spr)
+                args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" \
+                                                                    + spr_file_path_modified + "\""
+                os.system('cmd /c ' + args)
 
-            # Output for the vram file
-            basename_vram = os.path.basename(vram_file_path_original)
-            vram_file_path_modified = os.path.join(path_output_files, basename_vram)
-            args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + vram_export_path \
-                                                                + "\" \"" + vram_file_path_modified + "\" "
-            os.system('cmd /c ' + args)
+                # Output for the vram file
+                basename_vram = os.path.basename(vram_file_path_original)
+                vram_file_path_modified = os.path.join(path_output_files, basename_vram)
+                args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + vram_export_path \
+                                                                    + "\" \"" + vram_file_path_modified + "\" "
+                os.system('cmd /c ' + args)
 
-            # Remove the uncompressed modified files
-            os.remove(spr_export_path)
-            os.remove(vram_export_path)
+                # Remove the uncompressed modified files
+                os.remove(spr_export_path)
+                os.remove(vram_export_path)
+
+            else:
+
+                basename_spr = os.path.basename(spr_export_path).replace("_m.", ".")
+                basename_vram = os.path.basename(vram_export_path).replace("_m.", ".")
+                spr_file_path_modified = os.path.join(path_output_files, basename_spr)
+                vram_file_path_modified = os.path.join(path_output_files, basename_vram)
+
+                move(spr_export_path, spr_file_path_modified)
+                move(vram_export_path, vram_file_path_modified)
 
             msg = QMessageBox()
             msg.setWindowTitle("Message")
@@ -583,7 +663,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 character editor 1.2.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 character editor 1.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
