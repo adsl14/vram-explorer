@@ -5,7 +5,7 @@ from shutil import copyfile, rmtree, move
 import numpy as np
 from PyQt5.QtGui import QImage, QPixmap, QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
-from lib.RB2_characterEditor_design import *
+from lib.RB2_vram_explorer_design import *
 from lib.SprpDataInfo import SprpDataInfo
 from lib.SprpStruct import SprpStruct
 from lib.StpkStruct import StpkStruct
@@ -93,7 +93,7 @@ def read_dds_file(file_path):
 def open_spr_file(spr_path, start_pointer):
     with open(spr_path, mode='rb') as file:
 
-        # Move the pointer to the pos 16 and get the offset of the header
+        # Move the pointer to the pos 16 or 12 and get the offset of the header
         file.seek(start_pointer)
         stpk_struct.data_offset = int.from_bytes(file.read(bytes2Read), "big")
 
@@ -108,31 +108,44 @@ def open_spr_file(spr_path, start_pointer):
         file.seek(sprp_struct.type_info_base + 8)
         sprp_struct.data_count = int.from_bytes(file.read(bytes2Read), "big")
 
-        # Get the names of each texture
-        file.seek(sprp_struct.string_base + 1)
-        texture_name = ""
-        counter = 0
-        record_byte = True
 
-        while True:
-            data = file.read(1)
-            if record_byte:
-                if data == bytes.fromhex('2E'):
-                    textureNames.append(texture_name)
-                    texture_name = ""
-                    counter += 1
-                    if counter == sprp_struct.data_count:
-                        break
-                    record_byte = False
-                    continue
-                # If in the middle of the string there is a '00' value, we replace it with '_' in hex
-                elif data == bytes.fromhex('00'):
-                    data = "_".encode()
+        # Read the first four byte to check if the file is SPRP (50) or SPR (00).
+        # SPR -> there is no names for each texture
+        file.seek(3)
+        if file.read(1) != bytes.fromhex('00'):
+            # Get the names of each texture
+            file.seek(sprp_struct.string_base + 1)
+            texture_name = ""
+            counter = 0
+            record_byte = True
+            while True:
+                data = file.read(1)
+                if record_byte:
+                    if data == bytes.fromhex('2E'):
+                        textureNames.append(texture_name)
+                        texture_name = ""
+                        counter += 1
+                        if counter == sprp_struct.data_count:
+                            break
+                        record_byte = False
+                        continue
+                    # If in the middle of the string there is a '00' value, we replace it with '_' in hex
+                    elif data == bytes.fromhex('00'):
+                        data = "_".encode()
+                    # 82 is ‚
+                    elif data == bytes.fromhex('82'):
+                        data = "‚".encode()
+                    # 8C is Œ
+                    elif data == bytes.fromhex('8C'):
+                        data = "Œ".encode()
 
-                texture_name += data.decode('utf-8')
-            else:
-                if data == bytes.fromhex('00'):
-                    record_byte = True
+                    texture_name += data.decode('utf-8')
+                else:
+                    if data == bytes.fromhex('00'):
+                        record_byte = True
+        else:
+            for i in range(0, sprp_struct.data_count):
+                textureNames.append("unknown_name_" + str(i + 1))
 
         # Create a numpy array of zeros
         global offset_quanty_difference
@@ -301,6 +314,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.encodingImageText.setVisible(False)
         self.mipMapsImageText.setVisible(False)
         self.sizeImageText.setVisible(False)
+        self.fileNameText.setVisible(False)
 
     def action_export_logic(self):
 
@@ -405,7 +419,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def action_open_logic(self):
 
-        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, current_selected_texture, character_file
+        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, current_selected_texture,\
+            character_file
 
         # Open spr file
         spr_file_path_original = \
@@ -442,6 +457,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         textures_data.clear()
         textures_index_edited.clear()
 
+        basename = os.path.basename(spr_file_path_original)
+
         # Convert spr and vram files if we're dealing with character file
         if character_file:
             # Create a folder where we store the necessary files or delete it. If already exists,
@@ -451,7 +468,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             os.mkdir(temp_folder)
 
             # Execute the script in a command line for the spr file
-            basename = os.path.basename(spr_file_path_original)
             spr_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".spr", "_u.spr"))
             args = os.path.join("lib",
                                 "dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
@@ -501,6 +517,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.importButton.setVisible(True)
 
         # Show the text labels
+        self.fileNameText.setText(basename.split(".")[0])
+        self.fileNameText.setVisible(True)
         self.encodingImageText.setText(
             "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
         self.mipMapsImageText.setText("Mipmaps: %d" % tx2d_infos[current_selected_texture].mip_maps)
@@ -519,12 +537,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         if not textures_data:
             msg = QMessageBox()
             msg.setWindowTitle("Warning")
-            msg.setText("There is no character loaded.")
+            msg.setText("There is no file loaded.")
             msg.exec()
         elif not textures_index_edited:
             msg = QMessageBox()
             msg.setWindowTitle("Warning")
-            msg.setText("The character hasn't been modified.")
+            msg.setText("The file hasn't been modified.")
             msg.exec()
         else:
 
@@ -613,7 +631,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # If we're dealing with a vram character file
             if character_file:
-                # Change the header of pos 20 in vram file because that place indicates the size of the final output file
+                # Change the header of pos 20 in vram file because that place indicates the size of the final output
+                # file
                 with open(vram_export_path, mode="rb+") as output_file:
                     output_file.seek(20)
                     output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
@@ -663,7 +682,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 character editor 1.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 vram explorer 1.3.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
