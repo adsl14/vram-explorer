@@ -21,7 +21,7 @@ class Ui_MainWindow(object):
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.horizontalLayoutWidget = QtWidgets.QWidget(self.centralwidget)
-        self.horizontalLayoutWidget.setGeometry(QtCore.QRect(10, 20, 821, 651))
+        self.horizontalLayoutWidget.setGeometry(QtCore.QRect(10, 50, 821, 651))
         self.horizontalLayoutWidget.setObjectName("horizontalLayoutWidget")
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.horizontalLayoutWidget)
         self.horizontalLayout.setContentsMargins(0, 0, 0, 0)
@@ -73,7 +73,7 @@ class Ui_MainWindow(object):
         self.mipMapsImageText.setObjectName("mipMapsImageText")
         self.horizontalLayout.addWidget(self.frame)
         self.exportAllButton = QtWidgets.QPushButton(self.centralwidget)
-        self.exportAllButton.setGeometry(QtCore.QRect(90, 680, 75, 23))
+        self.exportAllButton.setGeometry(QtCore.QRect(90, 20, 75, 23))
         self.exportAllButton.setObjectName("exportAllButton")
         self.fileNameText = QtWidgets.QLabel(self.centralwidget)
         self.fileNameText.setGeometry(QtCore.QRect(0, 0, 841, 20))
@@ -116,7 +116,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 vram explorer 1.3.1"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 vram explorer 1.3.2"))
         self.exportButton.setText(_translate("MainWindow", "E&xport..."))
         self.importButton.setText(_translate("MainWindow", "I&mport..."))
         self.exportAllButton.setText(_translate("MainWindow", "Export all"))

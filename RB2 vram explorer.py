@@ -15,7 +15,9 @@ from datetime import datetime
 
 # types of spr file
 # Character file
-STPZ0 = "5354505a30"
+STPZ0 = "5354505a30"  # Raging Blast 2
+STPZdot = "5354505a00"  # Ultimate Tenkaichi
+STPZA = "5354505ac0"  # Render image versus
 character_file = False
 
 # number of bytes that usually reads the program
@@ -108,11 +110,11 @@ def open_spr_file(spr_path, start_pointer):
         file.seek(sprp_struct.type_info_base + 8)
         sprp_struct.data_count = int.from_bytes(file.read(bytes2Read), "big")
 
-
-        # Read the first four byte to check if the file is SPRP (50) or SPR (00).
+        # Read the first four bytes to check if the file is SPRP (50), SPR (00) or STPZ (5A).
         # SPR -> there is no names for each texture
         file.seek(3)
-        if file.read(1) != bytes.fromhex('00'):
+        data_type = file.read(1)
+        if data_type != bytes.fromhex('00'):
             # Get the names of each texture
             file.seek(sprp_struct.string_base + 1)
             texture_name = ""
@@ -138,6 +140,14 @@ def open_spr_file(spr_path, start_pointer):
                     # 8C is Œ
                     elif data == bytes.fromhex('8C'):
                         data = "Œ".encode()
+
+                    # If the texture name has the value 'TX2D', it means that the .spr hasn't got all the textureNames.
+                    # We will stop the loop and create defaults ones
+                    if texture_name.__contains__("TX2D"):
+                        textureNames.clear()
+                        for i in range(0, sprp_struct.data_count):
+                            textureNames.append("unknown_name_" + str(i + 1))
+                        break
 
                     texture_name += data.decode('utf-8')
                 else:
@@ -233,7 +243,7 @@ def open_vram_character_file(vram_path):
         header_3 = bytes.fromhex(header_3)
         for tx2dInfo in tx2d_infos:
             header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little') + (
-                    tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
+                tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
             header_4, header_5, header_6 = create_header(tx2dInfo.dxt_encoding)
             header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
@@ -261,7 +271,7 @@ def open_vram_file(vram_path):
         header_3 = bytes.fromhex(header_3)
         for tx2dInfo in tx2d_infos:
             header_2 = tx2dInfo.height.to_bytes(4, 'little') + tx2dInfo.width.to_bytes(4, 'little') + (
-                    tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
+                tx2dInfo.width * tx2dInfo.height).to_bytes(4, 'little')
             header_4, header_5, header_6 = create_header(tx2dInfo.dxt_encoding)
             header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
@@ -419,8 +429,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def action_open_logic(self):
 
-        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, current_selected_texture,\
-            character_file
+        global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, \
+            current_selected_texture, character_file
 
         # Open spr file
         spr_file_path_original = \
@@ -437,7 +447,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             type_file = spr_file.read(4)
             spr_file.seek(20)
             type_file = (type_file + spr_file.read(1)).hex()
-            if type_file == STPZ0:
+            character_file = False
+            if type_file == STPZ0 or type_file == STPZdot or type_file == STPZA:
                 character_file = True
 
         # Open vram file
@@ -475,9 +486,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Execute the script in a command line for the vram file
             basename = os.path.basename(vram_file_path_original)
-            vram_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".vram", "_u.vram"))
-            args = os.path.join("lib",
-                                "dbrb_compressor.exe") + " \"" + vram_file_path_original + "\" \"" + vram_file_path + "\""
+            vram_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder,
+                                          basename.replace(".vram", "_u.vram"))
+            args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + \
+                vram_file_path_original + "\" \"" + vram_file_path + "\""
             os.system('cmd /c ' + args)
 
             # Load the data from the files
@@ -490,7 +502,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             vram_file_path = vram_file_path_original
             open_spr_file(spr_file_path, 12)
             open_vram_file(vram_file_path)
-
 
         # Add the names to the list view
         current_selected_texture = 0
@@ -642,14 +653,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 basename_spr = os.path.basename(spr_file_path_original)
                 spr_file_path_modified = os.path.join(path_output_files, basename_spr)
                 args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" \
-                                                                    + spr_file_path_modified + "\""
+                    + spr_file_path_modified + "\""
                 os.system('cmd /c ' + args)
 
                 # Output for the vram file
                 basename_vram = os.path.basename(vram_file_path_original)
                 vram_file_path_modified = os.path.join(path_output_files, basename_vram)
-                args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + vram_export_path \
-                                                                    + "\" \"" + vram_file_path_modified + "\" "
+                args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + vram_export_path + "\" \"" \
+                    + vram_file_path_modified + "\" "
                 os.system('cmd /c ' + args)
 
                 # Remove the uncompressed modified files
@@ -682,7 +693,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 vram explorer 1.3.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 vram explorer 1.3.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
@@ -690,9 +701,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg = QMessageBox()
         msg.setTextFormat(1)
         msg.setWindowTitle("Credits")
-        msg.setText(
-            'To the Raging Blast Modding community and specially to revelation from <a '
-            'href=https://forum.xentax.com>XeNTaX</a> forum who made the compress/uncompress tool.')
+        msg.setText('<ul>'
+                    '<li>To <b>revelation (revel8n) </b> from <a ''href=https://forum.xentax.com>XeNTaX</a> '
+                    'forum who made the compress/uncompress tool <i>dbrb_compressor.exe</i>.</li>'
+                    '<li>To <b>316austin316</b> for reporting bugs.</li>'
+                    '<li>To the <a ''href=https://discord.gg/tBmcwkGUE6>Raging Blast Modding community</a>.</li>'
+                    '</ul>')
         msg.exec()
 
 
