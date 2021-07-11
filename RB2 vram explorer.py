@@ -124,6 +124,26 @@ def open_spr_file(spr_path, start_pointer):
                 data = file.read(1)
                 if record_byte:
                     if data == bytes.fromhex('2E'):
+
+                        # If the name of the texture has been already used, we add the string '_2', or '_3', etc
+                        counter_name = 1
+                        texture_name_aux = texture_name
+                        while True:
+                            if texture_name_aux in textureNames:
+                                counter_name += 1
+                                texture_name_aux = texture_name + "_" + str(counter_name)
+                            else:
+                                texture_name = texture_name_aux
+                                break
+
+                        # If the name of the texture is greater than 251 (251 + 4 (.dds) = 255, we reduce the size
+                        # of the string
+                        if len(texture_name) > 251:
+                         texture_name = texture_name[len(texture_name)-251:]
+
+                        # Clean the texture name from special characters
+                        texture_name = texture_name.replace("|", "_")
+
                         textureNames.append(texture_name)
                         texture_name = ""
                         counter += 1
@@ -131,6 +151,7 @@ def open_spr_file(spr_path, start_pointer):
                             break
                         record_byte = False
                         continue
+
                     # If in the middle of the string there is a '00' value, we replace it with '_' in hex
                     elif data == bytes.fromhex('00'):
                         data = "_".encode()
@@ -693,7 +714,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 vram explorer 1.3.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 vram explorer 1.3.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
