@@ -136,10 +136,10 @@ def open_spr_file(spr_path, start_pointer):
                                 texture_name = texture_name_aux
                                 break
 
-                        # If the name of the texture is greater than 251 (251 + 4 (.dds) = 255, we reduce the size
+                        # If the name of the texture is greater than 250 (250 + 4 (.dds) = 254, we reduce the size
                         # of the string
-                        if len(texture_name) > 251:
-                         texture_name = texture_name[len(texture_name)-251:]
+                        if len(texture_name) > 250:
+                         texture_name = texture_name[len(texture_name)-250:]
 
                         # Clean the texture name from special characters
                         texture_name = texture_name.replace("|", "_")
