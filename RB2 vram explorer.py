@@ -16,6 +16,7 @@ from datetime import datetime
 # types of spr file
 # Character file
 STPZ0 = "5354505a30"  # Raging Blast 2
+STPZP = "5354505a50"  # Raging Blast 2
 STPZdot = "5354505a00"  # Ultimate Tenkaichi
 STPZA = "5354505ac0"  # Render image versus
 character_file = False
@@ -469,7 +470,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             spr_file.seek(20)
             type_file = (type_file + spr_file.read(1)).hex()
             character_file = False
-            if type_file == STPZ0 or type_file == STPZdot or type_file == STPZA:
+            if type_file == STPZ0 or type_file == STPZdot or type_file == STPZA or type_file == STPZP:
                 character_file = True
 
         # Open vram file
