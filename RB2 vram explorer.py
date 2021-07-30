@@ -246,6 +246,16 @@ def get_dxt_byte(value):
         return "RGBA".encode()
 
 
+def get_dxt_value(encoding_name):
+    # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
+    if encoding_name == "DXT1":
+        return 8
+    elif encoding_name == "DXT5":
+        return 24
+    else:
+        return 0
+
+
 def open_vram_character_file(vram_path):
     global vram_file_size_old, tx2d_infos
 
@@ -395,59 +405,59 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 file.seek(12)
                 height = int.from_bytes(file.read(bytes2Read), 'little')
                 width = int.from_bytes(file.read(bytes2Read), 'little')
+                file.seek(28)
+                mip_maps = int.from_bytes(file.read(1), 'big')
                 # Get the dxtencoding
                 file.seek(84)
-                dxt_encoding = file.read(bytes2Read)
-                # In the RGBA file, we got only 0x00 0x00 0x00 0x00, so we have to change the text
-                if int.from_bytes(dxt_encoding, byteorder='big', signed=True) == 0:
-                    dxt_encoding = "RGBA"
-                else:
-                    dxt_encoding = dxt_encoding.decode('utf-8')
+                dxt_encoding = get_dxt_value(file.read(bytes2Read).decode())
+
                 # Get all the data
                 file.seek(0)
                 data = file.read()
 
-            # Get the tx2dinfo of the texture
-            tx2d_info = tx2d_infos[current_selected_texture]
-            dxt_encoding_original = get_dxt_byte(tx2d_info.dxt_encoding).decode("utf-8")
-            # Check if the size of original and modified one are the same
-            if tx2d_info.width != width or tx2d_info.height != height:
-                msg = QMessageBox()
-                msg.setWindowTitle("Error")
-                msg.setText("The resolution for the modified file must be %dx%d\nYour file is %dx%d" % (
-                    tx2d_info.width, tx2d_info.height, width, height))
-                msg.exec()
-            # The original and modified file must be in the same dxtencoding
-            elif dxt_encoding_original != dxt_encoding:
-                msg = QMessageBox()
-                msg.setWindowTitle("Error")
-                msg.setText("The encoding for the modified file must be in %s\nYour file is in %s" % (
-                    dxt_encoding_original, dxt_encoding))
-                msg.exec()
-            # Can import the texture
-            else:
-                # Get the difference in size between original and modified in order to change the offsets
-                len_data = len(data[128:])
-                difference = len_data - tx2d_infos[current_selected_texture].data_size
-                if difference != 0:
-                    tx2d_infos[current_selected_texture].data_size = len_data
-                    offset_quanty_difference[current_selected_texture] = difference
+            # Importing the texture
+            # Get the difference in size between original and modified in order to change the offsets
+            len_data = len(data[128:])
+            difference = len_data - tx2d_infos[current_selected_texture].data_size
+            if difference != 0:
+                tx2d_infos[current_selected_texture].data_size = len_data
+                offset_quanty_difference[current_selected_texture] = difference
 
-                # Change texture in the array
-                textures_data[current_selected_texture] = data
+            # Change width
+            if tx2d_infos[current_selected_texture].width != width:
+                tx2d_infos[current_selected_texture].width = width
+                self.sizeImageText.setText("Resolution: %dx%d" % (width, tx2d_infos[current_selected_texture].height))
+            # Change height
+            if tx2d_infos[current_selected_texture].height != height:
+                tx2d_infos[current_selected_texture].height = height
+                self.sizeImageText.setText(
+                    "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, height))
 
-                # Add the index texture that has been modified (if it was added before, we won't added twice)
-                if current_selected_texture not in textures_index_edited:
-                    textures_index_edited.append(current_selected_texture)
+            # Change mipMaps
+            if tx2d_infos[current_selected_texture].mip_maps != mip_maps:
+                tx2d_infos[current_selected_texture].mip_maps = mip_maps
+                self.mipMapsImageText.setText("Mipmaps: %s" % mip_maps)
 
-                try:
-                    # Show texture in the program
-                    img = read_dds_file(dds_import_path)
+            # Change dxt encoding
+            if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
+                tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
+                self.encodingImageText.setText("Encoding: %s" % (get_dxt_byte(dxt_encoding).decode('utf-8')))
 
-                    # Show the image
-                    self.imageTexture.setPixmap(QPixmap.fromImage(img))
-                except OSError:
-                    self.imageTexture.clear()
+            # Change texture in the array
+            textures_data[current_selected_texture] = data
+
+            # Add the index texture that has been modified (if it was added before, we won't added twice)
+            if current_selected_texture not in textures_index_edited:
+                textures_index_edited.append(current_selected_texture)
+
+            try:
+                # Show texture in the program
+                img = read_dds_file(dds_import_path)
+
+                # Show the image
+                self.imageTexture.setPixmap(QPixmap.fromImage(img))
+            except OSError:
+                self.imageTexture.clear()
 
     def action_open_logic(self):
 
@@ -600,12 +610,25 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             # Update the offsets
             with open(spr_export_path, mode="rb+") as output_file_spr:
                 first_index_texture_edited = textures_index_edited[0]
-                # Move where the information starts to the first modified texture and change the size
+                # Move where the information starts to the first modified texture
                 output_file_spr.seek(sprp_struct.data_base + sprpDatasInfo[first_index_texture_edited].data_offset + 12)
+                # Change the size
                 output_file_spr.write(tx2d_infos[first_index_texture_edited].data_size.to_bytes(4, byteorder="big"))
+                # Change width
+                output_file_spr.write(tx2d_infos[first_index_texture_edited].width.to_bytes(2, byteorder="big"))
+                # Change height
+                output_file_spr.write(tx2d_infos[first_index_texture_edited].height.to_bytes(2, byteorder="big"))
+                # Change mip_maps
+                output_file_spr.seek(2, os.SEEK_CUR)
+                output_file_spr.write(tx2d_infos[first_index_texture_edited].mip_maps.to_bytes(2, byteorder="big"))
+                # Change dxt encoding
+                output_file_spr.seek(8, os.SEEK_CUR)
+                output_file_spr.write(tx2d_infos[first_index_texture_edited].dxt_encoding.to_bytes(1, byteorder="big"))
+
                 # Check if is the last texture modified and there is no more textures in the bottom
                 if first_index_texture_edited + 1 < sprp_struct.data_count:
                     quanty_aux = int(offset_quanty_difference[first_index_texture_edited])
+                    # Reset offset difference for the first texture edited
                     offset_quanty_difference[first_index_texture_edited] = 0
                     first_index_texture_edited += 1
                     for i in range(first_index_texture_edited, sprp_struct.data_count):
@@ -617,10 +640,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         output_file_spr.write(int(abs(tx2d_infos[i].data_offset)).to_bytes(4, byteorder="big"))
                         output_file_spr.seek(4, os.SEEK_CUR)
 
-                        # Change the size only if they are differents.
-                        # Because maybe is the same texture and don't need to modify
-                        if tx2d_infos[i].data_size != tx2d_infos[i].data_size_old:
-                            output_file_spr.write(tx2d_infos[i].data_size.to_bytes(4, byteorder="big"))
+                        # Write the new data size
+                        output_file_spr.write(tx2d_infos[i].data_size.to_bytes(4, byteorder="big"))
+                        # Write the new  width
+                        output_file_spr.write(tx2d_infos[i].width.to_bytes(2, byteorder="big"))
+                        # Write the new  height
+                        output_file_spr.write(tx2d_infos[i].height.to_bytes(2, byteorder="big"))
+                        # Write the new  mip_maps
+                        output_file_spr.seek(2, os.SEEK_CUR)
+                        output_file_spr.write(tx2d_infos[i].mip_maps.to_bytes(2, byteorder="big"))
+                        # Write the new  dxt encoding
+                        output_file_spr.seek(8, os.SEEK_CUR)
+                        output_file_spr.write(tx2d_infos[i].dxt_encoding.to_bytes(1, byteorder="big"))
 
                         # Increment the difference only if the difference is not 0 and reset the offset differency array
                         if offset_quanty_difference[i] != 0:
@@ -715,7 +746,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 vram explorer 1.3.4 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 vram explorer 1.4 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
