@@ -14,12 +14,9 @@ from pyglet import image
 from datetime import datetime
 
 # types of spr file
-# Character file
-STPZ0 = "5354505a30"  # Raging Blast 2
-STPZP = "5354505a50"  # Raging Blast 2
-STPZdot = "5354505a00"  # Ultimate Tenkaichi
-STPZA = "5354505ac0"  # Render image versus
-character_file = False
+# STPZ file
+STPZ = "5354505a"
+stpz_file = False
 
 # number of bytes that usually reads the program
 bytes2Read = 4
@@ -256,7 +253,7 @@ def get_dxt_value(encoding_name):
         return 0
 
 
-def open_vram_character_file(vram_path):
+def open_vram_stpz_file(vram_path):
     global vram_file_size_old, tx2d_infos
 
     with open(vram_path, mode="rb") as file:
@@ -462,7 +459,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def action_open_logic(self):
 
         global spr_file_path_original, spr_file_path, vram_file_path_original, vram_file_path, \
-            current_selected_texture, character_file
+            current_selected_texture, stpz_file
 
         # Open spr file
         spr_file_path_original = \
@@ -474,14 +471,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             msg.setText("A spr file is needed.")
             msg.exec()
             return
-        # Check if the user has selected an spr character file
+        # Check if the user has selected an spr stpz file
         with open(spr_file_path_original, mode="rb") as spr_file:
-            type_file = spr_file.read(4)
-            spr_file.seek(20)
-            type_file = (type_file + spr_file.read(1)).hex()
-            character_file = False
-            if type_file == STPZ0 or type_file == STPZdot or type_file == STPZA or type_file == STPZP:
-                character_file = True
+            type_file = spr_file.read(4).hex()
+            stpz_file = False
+            if type_file == STPZ:
+                stpz_file = True
 
         # Open vram file
         vram_file_path_original = \
@@ -503,7 +498,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         basename = os.path.basename(spr_file_path_original)
 
         # Convert spr and vram files if we're dealing with character file
-        if character_file:
+        if stpz_file:
             # Create a folder where we store the necessary files or delete it. If already exists,
             # we remove every files in it
             if os.path.exists(temp_folder):
@@ -526,7 +521,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Load the data from the files
             open_spr_file(spr_file_path, 16)
-            open_vram_character_file(vram_file_path)
+            open_vram_stpz_file(vram_file_path)
 
         # Generic spr file. Don't need to convert
         else:
@@ -663,7 +658,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 with open(vram_file_path, mode="rb") as input_file:
 
                     # If we're dealing with a vram character file
-                    if character_file:
+                    if stpz_file:
                         # Move to the position 16, where it tells the offset of the file where the texture starts
                         data = input_file.read(16)
                         output_file.write(data)
@@ -694,7 +689,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 output_file.write(vram_file_size.to_bytes(4, byteorder='big'))
 
             # If we're dealing with a vram character file
-            if character_file:
+            if stpz_file:
                 # Change the header of pos 20 in vram file because that place indicates the size of the final output
                 # file
                 with open(vram_export_path, mode="rb+") as output_file:
@@ -746,7 +741,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 vram explorer 1.4 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "RB2 vram explorer 1.4.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
