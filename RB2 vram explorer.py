@@ -478,112 +478,74 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def action_import_logic(self):
 
         # Open spr file
-        import_path = QFileDialog.getOpenFileName(self, "Open file",
-                                                  os.path.join(os.path.abspath(os.getcwd()),
-                                                               tx2_datas[current_selected_texture].name),
-                                                  "DDS file (*.dds);; BMP file (*.bmp)")[0]
+        # For DDS
+        if tx2_datas[current_selected_texture].data_swizzle == 255:
+            import_path = QFileDialog.getOpenFileName(self, "Open file",
+                                                      os.path.join(os.path.abspath(os.getcwd()),
+                                                                   tx2_datas[current_selected_texture].name + ".dds"),
+                                                      "DDS file (*.dds)")[0]
+        # For BMP (png swizzled)
+        else:
+            import_path = QFileDialog.getOpenFileName(self, "Open file",
+                                                      os.path.join(os.path.abspath(os.getcwd()),
+                                                                   tx2_datas[current_selected_texture].name + ".bmp"),
+                                                      "BMP file (*.bmp)")[0]
         # The user didn't cancel the file to import
         if import_path:
             with open(import_path, mode="rb") as file:
                 header = file.read(2).hex()
 
-                # It's a DDS image
+                # It's a DDS modded image
                 if header != "424d":
-                    # Get the height and width of the modified image
-                    file.seek(12)
-                    height = int.from_bytes(file.read(bytes2Read), 'little')
-                    width = int.from_bytes(file.read(bytes2Read), 'little')
-                    file.seek(28)
-                    mip_maps = int.from_bytes(file.read(1), 'big')
-                    # Get the dxtencoding
-                    file.seek(84)
-                    dxt_encoding = get_dxt_value(file.read(bytes2Read).decode())
+                    # It's a DDS file the selected texture
+                    if tx2_datas[current_selected_texture].data_swizzle == 255:
 
-                    # Get all the data
-                    file.seek(0)
-                    data = file.read()
+                        # Get the height and width of the modified image
+                        file.seek(12)
+                        height = int.from_bytes(file.read(bytes2Read), 'little')
+                        width = int.from_bytes(file.read(bytes2Read), 'little')
+                        file.seek(28)
+                        mip_maps = int.from_bytes(file.read(1), 'big')
+                        # Get the dxtencoding
+                        file.seek(84)
+                        dxt_encoding = get_dxt_value(file.read(bytes2Read).decode())
 
-                    # Importing the texture
-                    # Get the difference in size between original and modified in order to change the offsets
-                    len_data = len(data[128:])
-                    difference = len_data - tx2d_infos[current_selected_texture].data_size
-                    if difference != 0:
-                        tx2d_infos[current_selected_texture].data_size = len_data
-                        offset_quanty_difference[current_selected_texture] = difference
-
-                    # Change width
-                    if tx2d_infos[current_selected_texture].width != width:
-                        tx2d_infos[current_selected_texture].width = width
-                        self.sizeImageText.setText(
-                            "Resolution: %dx%d" % (width, tx2d_infos[current_selected_texture].height))
-                    # Change height
-                    if tx2d_infos[current_selected_texture].height != height:
-                        tx2d_infos[current_selected_texture].height = height
-                        self.sizeImageText.setText(
-                            "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, height))
-
-                    # Change mipMaps
-                    if tx2d_infos[current_selected_texture].mip_maps != mip_maps:
-                        tx2d_infos[current_selected_texture].mip_maps = mip_maps
-                        self.mipMapsImageText.setText("Mipmaps: %s" % mip_maps)
-
-                    # Change dxt encoding
-                    if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
-                        tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
-                        self.encodingImageText.setText("Encoding: %s" % (get_dxt_byte(dxt_encoding).decode('utf-8')))
-
-                    # Change texture in the array
-                    tx2_datas[current_selected_texture].data = data
-
-                    # Add the index texture that has been modified (if it was added before, we won't added twice)
-                    if current_selected_texture not in textures_index_edited:
-                        textures_index_edited.append(current_selected_texture)
-
-                    try:
-                        # Show texture in the program
-                        img = read_dds_file(import_path)
-
-                        # Show the image
-                        self.imageTexture.setPixmap(QPixmap.fromImage(img))
-                    except OSError:
-                        self.imageTexture.clear()
-
-                # BMP image
-                else:
-
-                    # Get the height and width of the modified image
-                    file.seek(18)
-                    width = int.from_bytes(file.read(bytes2Read), 'little')
-                    height = int.from_bytes(file.read(bytes2Read), 'little')
-
-                    # Get the number of bits
-                    file.seek(28)
-                    number_bits = int.from_bytes(file.read(2), 'little')
-
-                    # Check if the size of original and modified one are the same
-                    if tx2d_infos[current_selected_texture].width != width or \
-                            tx2d_infos[current_selected_texture].height != height:
-                        msg = QMessageBox()
-                        msg.setWindowTitle("Error")
-                        msg.setText("The resolution for the modified file must be %dx%d\nYour file is %dx%d" % (
-                            tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height,
-                            width, height))
-                        msg.exec()
-                    # Check if the modified file is in 32 bits
-                    elif number_bits != 32:
-                        msg = QMessageBox()
-                        msg.setWindowTitle("Error")
-                        msg.setText("The number of bits for the modified file must be %d bits\nYour file is %d bits" %
-                                    (32, number_bits))
-                        msg.exec()
-                    else:
                         # Get all the data
                         file.seek(0)
                         data = file.read()
 
                         # Importing the texture
+                        # Get the difference in size between original and modified in order to change the offsets
+                        len_data = len(data[128:])
+                        difference = len_data - tx2d_infos[current_selected_texture].data_size
+                        if difference != 0:
+                            tx2d_infos[current_selected_texture].data_size = len_data
+                            offset_quanty_difference[current_selected_texture] = difference
+
+                        # Change width
+                        if tx2d_infos[current_selected_texture].width != width:
+                            tx2d_infos[current_selected_texture].width = width
+                            self.sizeImageText.setText(
+                                "Resolution: %dx%d" % (width, tx2d_infos[current_selected_texture].height))
+                        # Change height
+                        if tx2d_infos[current_selected_texture].height != height:
+                            tx2d_infos[current_selected_texture].height = height
+                            self.sizeImageText.setText(
+                                "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, height))
+
+                        # Change mipMaps
+                        if tx2d_infos[current_selected_texture].mip_maps != mip_maps:
+                            tx2d_infos[current_selected_texture].mip_maps = mip_maps
+                            self.mipMapsImageText.setText("Mipmaps: %s" % mip_maps)
+
+                        # Change dxt encoding
+                        if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
+                            tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
+                            self.encodingImageText.setText("Encoding: %s" %
+                                                           (get_dxt_byte(dxt_encoding).decode('utf-8')))
+
                         # Change texture in the array
-                        tx2_datas[current_selected_texture].data_swizzle = data
+                        tx2_datas[current_selected_texture].data = data
 
                         # Add the index texture that has been modified (if it was added before, we won't added twice)
                         if current_selected_texture not in textures_index_edited:
@@ -591,13 +553,77 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                         try:
                             # Show texture in the program
-                            mpixmap = QPixmap()
-                            mpixmap.loadFromData(data, "BMP")
+                            img = read_dds_file(import_path)
 
                             # Show the image
-                            self.imageTexture.setPixmap(mpixmap)
+                            self.imageTexture.setPixmap(QPixmap.fromImage(img))
                         except OSError:
                             self.imageTexture.clear()
+                    else:
+                        msg = QMessageBox()
+                        msg.setWindowTitle("Error")
+                        msg.setText("The image you're importing is DDS and should be BMP")
+                        msg.exec()
+
+                # it's a BMP modded image
+                else:
+                    # It's a BMP file the selected texture
+                    if get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding) == "RGBA".encode() \
+                            and tx2_datas[current_selected_texture].extension == "png":
+
+                        # Get the height and width of the modified image
+                        file.seek(18)
+                        width = int.from_bytes(file.read(bytes2Read), 'little')
+                        height = int.from_bytes(file.read(bytes2Read), 'little')
+
+                        # Get the number of bits
+                        file.seek(28)
+                        number_bits = int.from_bytes(file.read(2), 'little')
+
+                        # Check if the size of original and modified one are the same
+                        if tx2d_infos[current_selected_texture].width != width or \
+                                tx2d_infos[current_selected_texture].height != height:
+                            msg = QMessageBox()
+                            msg.setWindowTitle("Error")
+                            msg.setText("The resolution for the modified file must be %dx%d\nYour file is %dx%d" % (
+                                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height,
+                                width, height))
+                            msg.exec()
+                        # Check if the modified file is in 32 bits
+                        elif number_bits != 32:
+                            msg = QMessageBox()
+                            msg.setWindowTitle("Error")
+                            msg.setText("The number of bits for the modified file must be %d bits\nYour file is %d bits"
+                                        % (32, number_bits))
+                            msg.exec()
+                        else:
+                            # Get all the data
+                            file.seek(0)
+                            data = file.read()
+
+                            # Importing the texture
+                            # Change texture in the array
+                            tx2_datas[current_selected_texture].data_swizzle = data
+
+                            # Add the index texture that has been modified (if it was added before,
+                            # we won't added twice)
+                            if current_selected_texture not in textures_index_edited:
+                                textures_index_edited.append(current_selected_texture)
+
+                            try:
+                                # Show texture in the program
+                                mpixmap = QPixmap()
+                                mpixmap.loadFromData(data, "BMP")
+
+                                # Show the image
+                                self.imageTexture.setPixmap(mpixmap)
+                            except OSError:
+                                self.imageTexture.clear()
+                    else:
+                        msg = QMessageBox()
+                        msg.setWindowTitle("Error")
+                        msg.setText("The image you're importing is BMP and should be DDS")
+                        msg.exec()
 
     def action_open_logic(self):
 
