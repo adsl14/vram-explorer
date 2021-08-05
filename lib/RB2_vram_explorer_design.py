@@ -46,6 +46,18 @@ class Ui_MainWindow(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.imageTexture.sizePolicy().hasHeightForWidth())
         self.imageTexture.setSizePolicy(sizePolicy)
+        palette = QtGui.QPalette()
+        brush = QtGui.QBrush(QtGui.QColor(255, 255, 255))
+        brush.setStyle(QtCore.Qt.SolidPattern)
+        palette.setBrush(QtGui.QPalette.Active, QtGui.QPalette.Base, brush)
+        brush = QtGui.QBrush(QtGui.QColor(255, 255, 255))
+        brush.setStyle(QtCore.Qt.SolidPattern)
+        palette.setBrush(QtGui.QPalette.Inactive, QtGui.QPalette.Base, brush)
+        brush = QtGui.QBrush(QtGui.QColor(240, 240, 240))
+        brush.setStyle(QtCore.Qt.SolidPattern)
+        palette.setBrush(QtGui.QPalette.Disabled, QtGui.QPalette.Base, brush)
+        self.imageTexture.setPalette(palette)
+        self.imageTexture.setAutoFillBackground(False)
         self.imageTexture.setText("")
         self.imageTexture.setScaledContents(True)
         self.imageTexture.setAlignment(QtCore.Qt.AlignCenter)
@@ -116,7 +128,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 vram explorer 1.4.1"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "RB2 vram explorer 1.5"))
         self.exportButton.setText(_translate("MainWindow", "E&xport..."))
         self.importButton.setText(_translate("MainWindow", "I&mport..."))
         self.exportAllButton.setText(_translate("MainWindow", "Export all"))
