@@ -309,7 +309,7 @@ def open_vram_stpz_file(vram_path):
             data_dds = header + data
             tx2_datas[i].data = data_dds
 
-            # Create swizzle image if the encoding is 'RGBA' and the extension is 'png' (it takes a little time)
+            # Create unswizzle image if the encoding is 'RGBA' and the extension is 'png' (it takes a little time)
             if header_4.hex() == "41000000" and tx2_datas[i].extension == "png":
                 header_1_bmp = "42 4D"
                 header_2_bmp = (tx2d_infos[i].data_size + 54).to_bytes(4, 'little').hex()
@@ -320,10 +320,10 @@ def open_vram_stpz_file(vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                tx2_datas[i].data_swizzle, tx2_datas[i].indexes_swizzle_algorithm = \
-                    swizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
+                tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
+                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
 
-                tx2_datas[i].data_swizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_swizzle)
+                tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
 
 
 def open_vram_file(vram_path):
@@ -353,7 +353,7 @@ def open_vram_file(vram_path):
             data_dds = header + data
             tx2_datas[i].data = data_dds
 
-            # Create swizzle image if the encoding is 'RGBA' and the extension is 'png' (it takes a little time)
+            # Create unswizzle image if the encoding is 'RGBA' and the extension is 'png' (it takes a little time)
             if header_4.hex() == "41000000" and tx2_datas[i].extension == "png":
                 header_1_bmp = "42 4D"
                 header_2_bmp = (tx2d_infos[i].data_size + 54).to_bytes(4, 'little').hex()
@@ -364,10 +364,10 @@ def open_vram_file(vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                tx2_datas[i].data_swizzle, tx2_datas[i].indexes_swizzle_algorithm = \
-                    swizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
+                tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
+                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
 
-                tx2_datas[i].data_swizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_swizzle)
+                tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
 
 
 def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_image_text, size_image_text):
@@ -376,12 +376,12 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
     if current_selected_texture != q_model_index.row():
         current_selected_texture = q_model_index.row()
 
-        # If there is no data_swizzle loaded (255), we show the texture as DDS
-        if tx2_datas[current_selected_texture].data_swizzle == 255:
+        # If there is no data_sunwizzle loaded (255), we show the texture as DDS
+        if tx2_datas[current_selected_texture].data_unswizzle == 255:
             # Create the dds in disk and open it
             show_dds_image(image_texture, tx2_datas[current_selected_texture].data)
         else:
-            show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_swizzle)
+            show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_unswizzle)
 
         encoding_image_text.setText(
             "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
@@ -422,8 +422,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def action_export_logic(self):
 
-        # If there is no data_swizzle loaded (255), we show the texture as DDS
-        if tx2_datas[current_selected_texture].data_swizzle == 255:
+        # If there is no data_unswizzle loaded (255), we show the texture as DDS
+        if tx2_datas[current_selected_texture].data_unswizzle == 255:
             # Save dds file
             export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()),
                                                                                       tx2_datas[
@@ -441,7 +441,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                                                                       .name + ".bmp"),
                                                       "BMP file (*.bmp)")[0]
 
-            data = tx2_datas[current_selected_texture].data_swizzle
+            data = tx2_datas[current_selected_texture].data_unswizzle
 
         if export_path:
             file = open(export_path, mode="wb")
@@ -460,14 +460,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             os.mkdir(folder_export_path)
 
         for i in range(0, sprp_struct.data_count):
-            # The image is dds (we have checked before if the image is swizzle, we store the data in data_swizzle)
-            if tx2_datas[i].data_swizzle == 255:
+            # The image is dds (we have checked before if the image is unswizzle, we store the data in data_unswizzle)
+            if tx2_datas[i].data_unswizzle == 255:
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".dds"), mode="wb")
                 file.write(tx2_datas[i].data)
                 file.close()
             else:
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".bmp"), mode="wb")
-                file.write(tx2_datas[i].data_swizzle)
+                file.write(tx2_datas[i].data_unswizzle)
                 file.close()
 
         msg = QMessageBox()
@@ -479,12 +479,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Open spr file
         # For DDS
-        if tx2_datas[current_selected_texture].data_swizzle == 255:
+        if tx2_datas[current_selected_texture].data_unswizzle == 255:
             import_path = QFileDialog.getOpenFileName(self, "Open file",
                                                       os.path.join(os.path.abspath(os.getcwd()),
                                                                    tx2_datas[current_selected_texture].name + ".dds"),
                                                       "DDS file (*.dds)")[0]
-        # For BMP (png swizzled)
+        # For BMP (png unswizzled)
         else:
             import_path = QFileDialog.getOpenFileName(self, "Open file",
                                                       os.path.join(os.path.abspath(os.getcwd()),
@@ -498,7 +498,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # It's a DDS modded image
                 if header != "424d":
                     # It's a DDS file the selected texture
-                    if tx2_datas[current_selected_texture].data_swizzle == 255:
+                    if tx2_datas[current_selected_texture].data_unswizzle == 255:
 
                         # Get the height and width of the modified image
                         file.seek(12)
@@ -603,7 +603,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                             # Importing the texture
                             # Change texture in the array
-                            tx2_datas[current_selected_texture].data_swizzle = data
+                            tx2_datas[current_selected_texture].data_unswizzle = data
 
                             # Add the index texture that has been modified (if it was added before,
                             # we won't added twice)
@@ -714,12 +714,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                             self.mipMapsImageText,
                                             self.sizeImageText))
 
-        # If there is no data_swizzle loaded (255), we show the texture as DDS
-        if tx2_datas[0].data_swizzle == 255:
+        # If there is no data_unswizzle loaded (255), we show the texture as DDS
+        if tx2_datas[0].data_unswizzle == 255:
             # Create the dds in disk and open it
             show_dds_image(self.imageTexture, tx2_datas[0].data)
         else:
-            show_bmp_image(self.imageTexture, tx2_datas[0].data_swizzle)
+            show_bmp_image(self.imageTexture, tx2_datas[0].data_unswizzle)
 
         # Show the buttons
         self.exportButton.setVisible(True)
@@ -850,14 +850,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         input_file.seek(tx2d_info.data_size_old, os.SEEK_CUR)
 
                         # It's a DDS image
-                        if tx2d_data.data_swizzle == 255:
+                        if tx2d_data.data_unswizzle == 255:
                             output_file.write(tx2_datas[texture_index].data[128:])
                         else:
-                            data = unswizzle_algorithm(tx2_datas[texture_index].data[128:],
-                                                       tx2_datas[texture_index].data_swizzle[54:],
-                                                       tx2_datas[texture_index].indexes_swizzle_algorithm,
-                                                       tx2d_infos[texture_index].width,
-                                                       tx2d_infos[texture_index].height)
+                            data = swizzle_algorithm(tx2_datas[texture_index].data[128:],
+                                                     tx2_datas[texture_index].data_unswizzle[54:],
+                                                     tx2_datas[texture_index].indexes_unswizzle_algorithm,
+                                                     tx2d_infos[texture_index].width,
+                                                     tx2d_infos[texture_index].height)
                             output_file.write(data)
 
                     data = input_file.read()

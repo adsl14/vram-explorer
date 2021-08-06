@@ -1,6 +1,8 @@
 import os
 
 
+# Credit to user aggsol from https://stackoverflow.com/questions/12157685/z-order-curve-coordinates, whose solution
+# is based on http://graphics.stanford.edu/~seander/bithacks.html
 def cal_z_order(x_pos, y_pos):
     masks = [int("0x55555555", base=16), int("0x33333333", base=16), int("0x0F0F0F0F", base=16),
              int("0x00FF00FF", base=16)]
@@ -24,10 +26,11 @@ def cal_z_order(x_pos, y_pos):
     return result
 
 
-# Swizzle algorithm
-def swizzle_algorithm(texture, width, height):
-    # Swizzle algorithm
-    swizzled = ""
+# unswizzle algorithm
+def unswizzle_algorithm(texture, width, height):
+
+    # unSwizzle algorithm
+    unswizzled = ""
     indexes = []
 
     if width > height:
@@ -35,57 +38,58 @@ def swizzle_algorithm(texture, width, height):
     else:
         square = height
 
-    for i in range(0, square):
-        for j in range(0, square):
+    for j in range(0, square):
+        for i in range(0, square):
 
-            index = cal_z_order(j, i)
+            index = cal_z_order(i, j)
 
             if len(texture) > (index * 4):
-                swizzled = swizzled + "0x{:02x}".format(texture[index * 4]).replace('0x', '')
+                unswizzled = unswizzled + "0x{:02x}".format(texture[index * 4]).replace('0x', '')
                 indexes.append(index * 4)
 
                 if len(texture) > (index * 4 + 1):
-                    swizzled = swizzled + "0x{:02x}".format(texture[index * 4 + 1]).replace('0x', '')
+                    unswizzled = unswizzled + "0x{:02x}".format(texture[index * 4 + 1]).replace('0x', '')
                     indexes.append(index * 4 + 1)
 
                     if len(texture) > (index * 4 + 2):
-                        swizzled = swizzled + "0x{:02x}".format(texture[index * 4 + 2]).replace('0x', '')
+                        unswizzled = unswizzled + "0x{:02x}".format(texture[index * 4 + 2]).replace('0x', '')
                         indexes.append(index * 4 + 2)
 
                         if len(texture) > (index * 4 + 3):
-                            swizzled = swizzled + "0x{:02x}".format(texture[index * 4 + 3]).replace('0x', '')
+                            unswizzled = unswizzled + "0x{:02x}".format(texture[index * 4 + 3]).replace('0x', '')
                             indexes.append(index * 4 + 3)
 
-    # End Swizzle algorithm
+    # End unswizzle algorithm
 
     # Fix the colors and orientation
-    swizzled = fix_orientation_image(swizzled, width, height)
-    swizzled = invert_bytes(swizzled)
+    unswizzled = fix_orientation_image(unswizzled, width, height)
+    unswizzled = invert_bytes(unswizzled)
 
-    return swizzled, indexes
+    return unswizzled, indexes
 
 
-def unswizzle_algorithm(texture_unswizzled, texture_swizzled, indexes, width, height):
+def swizzle_algorithm(texture_swizzled, texture_unswizzled, indexes, width, height):
+
     # Invert the colors and orientation
-    texture_swizzled = invert_bytes(texture_swizzled.hex())
-    texture_swizzled = bytes.fromhex(fix_orientation_image(texture_swizzled, width, height))
+    texture_unswizzled = invert_bytes(texture_unswizzled.hex())
+    texture_unswizzled = bytes.fromhex(fix_orientation_image(texture_unswizzled, width, height))
 
     with open("tempSwizzle", mode="wb") as temp_file:
-        temp_file.write(texture_unswizzled)
+        temp_file.write(texture_swizzled)
 
     j = 0
     with open("tempSwizzle", mode="rb+") as temp_file:
         for i in indexes:
             temp_file.seek(i)
-            temp_file.write(texture_swizzled[j].to_bytes(1, 'big'))
+            temp_file.write(texture_unswizzled[j].to_bytes(1, 'big'))
             j = j + 1
 
         temp_file.seek(0)
-        texture_unswizzled = temp_file.read()
+        texture_swizzled = temp_file.read()
 
     os.remove("tempSwizzle")
 
-    return texture_unswizzled
+    return texture_swizzled
 
 
 def fix_orientation_image(image_data, width, height):
