@@ -27,7 +27,7 @@ def cal_z_order(x_pos, y_pos):
 
 
 # unswizzle algorithm
-def unswizzle_algorithm(texture, width, height, texture_name):
+def unswizzle_algorithm(texture, width, height, progressbar_swizzle):
 
     # unSwizzle algorithm
     unswizzled = ""
@@ -38,8 +38,10 @@ def unswizzle_algorithm(texture, width, height, texture_name):
     else:
         square = height
 
-    progress = 0
-    limit = (square * square) + 2
+    # Initialize the progress bar for swizzlings
+    progressbar_swizzle.setMaximum((square * square) + 2)
+    progressbar_swizzle.setValue(0)
+    progressbar_swizzle.setVisible(True)
 
     for j in range(0, square):
         for i in range(0, square):
@@ -62,44 +64,41 @@ def unswizzle_algorithm(texture, width, height, texture_name):
                             unswizzled = unswizzled + "0x{:02x}".format(texture[index * 4 + 3]).replace('0x', '')
                             indexes.append(index * 4 + 3)
 
-            progress = progress + 1
-            print("Loading %s: %d/%d" % (texture_name, progress, limit))
+            progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
 
     # End unswizzle algorithm
 
     # Fix the orientation
     unswizzled = fix_orientation_image(unswizzled, width, height)
-    progress = progress + 1
-    print("Loading %s: %d/%d" % (texture_name, progress, limit))
+    progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
 
     # Fix the colors
     unswizzled = invert_bytes(unswizzled)
-    progress = progress + 1
-    print("Loading %s: %d/%d" % (texture_name, progress, limit))
+    progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
+
+    progressbar_swizzle.setVisible(False)
 
     return unswizzled, indexes
 
 
-def swizzle_algorithm(texture_swizzled, texture_unswizzled, indexes, width, height, texture_name):
+def swizzle_algorithm(texture_swizzled, texture_unswizzled, indexes, width, height, progressbar_swizzle):
 
     # Initialize the progress bar for swizzlings
-    progress = 0
-    limit = len(indexes) + 5
+    progressbar_swizzle.setMaximum(len(indexes) + 5)
+    progressbar_swizzle.setValue(0)
+    progressbar_swizzle.setVisible(True)
 
     # Fix the orientation
     texture_unswizzled = invert_bytes(texture_unswizzled.hex())
-    progress = progress + 1
-    print("Loading %s: %d/%d" % (texture_name, progress, limit))
+    progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
 
     # Fix the colors
     texture_unswizzled = bytes.fromhex(fix_orientation_image(texture_unswizzled, width, height))
-    progress = progress + 1
-    print("Loading %s: %d/%d" % (texture_name, progress, limit))
+    progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
 
     with open("tempSwizzle", mode="wb") as temp_file:
         temp_file.write(texture_swizzled)
-    progress = progress + 1
-    print("Loading %s: %d/%d" % (texture_name, progress, limit))
+    progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
 
     j = 0
     with open("tempSwizzle", mode="rb+") as temp_file:
@@ -107,17 +106,16 @@ def swizzle_algorithm(texture_swizzled, texture_unswizzled, indexes, width, heig
             temp_file.seek(i)
             temp_file.write(texture_unswizzled[j].to_bytes(1, 'big'))
             j = j + 1
-            progress = progress + 1
-            print("Loading %s: %d/%d" % (texture_name, progress, limit))
+            progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
 
         temp_file.seek(0)
         texture_swizzled = temp_file.read()
-    progress = progress + 1
-    print("Loading %s: %d/%d" % (texture_name, progress, limit))
+    progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
 
     os.remove("tempSwizzle")
-    progress = progress + 1
-    print("Loading %s: %d/%d" % (texture_name, progress, limit))
+    progressbar_swizzle.setValue(progressbar_swizzle.value() + 1)
+
+    progressbar_swizzle.setVisible(False)
 
     return texture_swizzled
 
