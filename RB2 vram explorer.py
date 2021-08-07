@@ -281,7 +281,8 @@ def get_dxt_value(encoding_name):
         return 0
 
 
-def open_vram_stpz_file(progressbar_swizzle, vram_path):
+def open_vram_stpz_file(vram_path):
+
     global vram_file_size_old, tx2d_infos, tx2_datas
 
     with open(vram_path, mode="rb") as file:
@@ -298,6 +299,7 @@ def open_vram_stpz_file(progressbar_swizzle, vram_path):
         header_3 = "00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " \
                    "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 "
         header_3 = bytes.fromhex(header_3)
+
         for i in range(0, len(tx2d_infos)):
             header_2 = tx2d_infos[i].height.to_bytes(4, 'little') + tx2d_infos[i].width.to_bytes(4, 'little') + (
                 tx2d_infos[i].width * tx2d_infos[i].height).to_bytes(4, 'little')
@@ -320,16 +322,13 @@ def open_vram_stpz_file(progressbar_swizzle, vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                # Change the progressbar name
-                progressbar_swizzle.setFormat("Loading " + tx2_datas[i].name)
-
                 tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
-                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height, progressbar_swizzle)
+                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height, tx2_datas[i].name)
 
                 tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
 
 
-def open_vram_file(progressbar_swizzle, vram_path):
+def open_vram_file(vram_path):
     global vram_file_size_old, tx2d_infos
 
     with open(vram_path, mode="rb") as file:
@@ -367,11 +366,8 @@ def open_vram_file(progressbar_swizzle, vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                # Change the progressbar name
-                progressbar_swizzle.setFormat("Loading " + tx2_datas[i].name)
-
                 tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
-                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height, progressbar_swizzle)
+                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height, tx2_datas[i].name)
 
                 tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
 
@@ -405,7 +401,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # File tab
         self.actionOpen.triggered.connect(self.action_open_logic)
-        self.actionSave.triggered.connect(lambda x: self.action_save_logic(self.progressbarSwizzle))
+        self.actionSave.triggered.connect(self.action_save_logic)
         self.actionClose.triggered.connect(self.close)
 
         # About tab
@@ -425,9 +421,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.mipMapsImageText.setVisible(False)
         self.sizeImageText.setVisible(False)
         self.fileNameText.setVisible(False)
-
-        # Swizzle progress bar
-        self.progressbarSwizzle.setVisible(False)
 
     def action_export_logic(self):
 
@@ -698,14 +691,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Load the data from the files
             open_spr_file(spr_file_path, 16)
-            open_vram_stpz_file(self.progressbarSwizzle, vram_file_path)
+            open_vram_stpz_file(vram_file_path)
 
         # Generic spr file. Don't need to convert
         else:
             spr_file_path = spr_file_path_original
             vram_file_path = vram_file_path_original
             open_spr_file(spr_file_path, 12)
-            open_vram_file(self.progressbarSwizzle, vram_file_path)
+            open_vram_file(vram_file_path)
 
         # Add the names to the list view
         current_selected_texture = 0
@@ -749,7 +742,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.sizeImageText.setVisible(True)
 
     @staticmethod
-    def action_save_logic(progressbar_swizzle):
+    def action_save_logic():
 
         global spr_file_path_original, vram_file_path_original
 
@@ -862,14 +855,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         if tx2d_data.data_unswizzle == 255:
                             output_file.write(tx2_datas[texture_index].data[128:])
                         else:
-                            # Change the progressbar name
-                            progressbar_swizzle.setFormat("Saving " + tx2_datas[texture_index].name)
 
                             data = swizzle_algorithm(tx2_datas[texture_index].data[128:],
                                                      tx2_datas[texture_index].data_unswizzle[54:],
                                                      tx2_datas[texture_index].indexes_unswizzle_algorithm,
                                                      tx2d_infos[texture_index].width,
-                                                     tx2d_infos[texture_index].height, progressbar_swizzle)
+                                                     tx2d_infos[texture_index].height, tx2_datas[texture_index].name)
                             output_file.write(data)
 
                     data = input_file.read()
