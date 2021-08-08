@@ -9,3 +9,9 @@ Also, you can export and import the textures into those files.
 Credits to the Raging Blast Modding community and specially to revelation from [XeNTaX](https://forum.xentax.com) forum who made the compress/uncompress tool.
 
 You can get access to the Raging Blast Modding community in the [Discord](https://discord.gg/tBmcwkGUE6) server
+
+## 1.5 version
+
+![1.5 Main feature](images/hud_mod.jpg)
+
+Support for png images. Now you can explore, export and import textures into those files that have png textures.
