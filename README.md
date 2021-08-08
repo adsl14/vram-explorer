@@ -1,8 +1,8 @@
-# RB2 vram explorer
+# vram explorer
 
-![RB2 vram explorer image](images/main_image.png)
+![vram explorer image](images/main_image.png)
 
-This tool will help you to explore the \*.vram files from the game Dragon Ball Raging Blast 2. 
+This tool will help you to explore the \*.vram files from the game Dragon Ball Raging Blast, Dragon Ball Raging Blast 2 and Ultimate Tenkaichi. 
 
 Also, you can export and import the textures into those files.
 
