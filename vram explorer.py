@@ -5,7 +5,7 @@ import numpy as np
 from PyQt5.QtGui import QImage, QPixmap, QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from lib.SwizzleFunctions import *
-from lib.RB2_vram_explorer_design import *
+from lib.vram_explorer_design import *
 from lib.SprpDataInfo import SprpDataInfo
 from lib.SprpStruct import SprpStruct
 from lib.StpkStruct import StpkStruct
@@ -936,7 +936,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "RB2 vram explorer 1.5.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "vram explorer 1.5.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
