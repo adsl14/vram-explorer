@@ -12,6 +12,6 @@ You can get access to the Raging Blast Modding community in the [Discord](https:
 
 ## 1.5 version
 
-![1.5 Main feature](images/hud_mod.jpg)
-
 Support for png images. Now you can explore, export and import textures into those files that have png textures.
+
+<img src="images/hud_mod.jpg" alt="1.5 Main feature" width="50%">
