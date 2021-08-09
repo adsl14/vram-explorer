@@ -17,3 +17,9 @@ Support for png images. Now you can explore, export and import textures into tho
 <strong>WARNING</strong>: If you try to load a file that has a very large image texture, it will take some time to load it, so don't close the program even you see it's not responding.
 
 <img src="images/hud_mod.jpg" alt="1.5 Main feature" width="50%">
+
+Examples:
+
+<img src="images/museum_picture.jpg" alt="Museum picture" width="70%">
+
+<img src="images/versus_image.jpg" alt="Versus image" width="70%">
