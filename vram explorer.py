@@ -471,7 +471,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # If there is no data_unswizzle loaded (255), we show the texture as DDS
         if tx2_datas[current_selected_texture].data_unswizzle == 255:
             # Save dds file
-            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()),
+            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(spr_file_path),
                                                                                       tx2_datas[
                                                                                           current_selected_texture]
                                                                                       .name + ".dds"),
@@ -481,7 +481,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         else:
             # Save bmp file
-            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()),
+            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(spr_file_path),
                                                                                       tx2_datas[
                                                                                           current_selected_texture]
                                                                                       .name + ".bmp"),
@@ -527,13 +527,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # For DDS
         if tx2_datas[current_selected_texture].data_unswizzle == 255:
             import_path = QFileDialog.getOpenFileName(self, "Open file",
-                                                      os.path.join(os.path.abspath(os.getcwd()),
+                                                      os.path.join(os.path.abspath(spr_file_path),
                                                                    tx2_datas[current_selected_texture].name + ".dds"),
                                                       "DDS file (*.dds)")[0]
         # For BMP (png unswizzled)
         else:
             import_path = QFileDialog.getOpenFileName(self, "Open file",
-                                                      os.path.join(os.path.abspath(os.getcwd()),
+                                                      os.path.join(os.path.abspath(spr_file_path),
                                                                    tx2_datas[current_selected_texture].name + ".bmp"),
                                                       "BMP file (*.bmp)")[0]
         # The user didn't cancel the file to import
@@ -696,7 +696,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Open vram file
         vram_file_path_original = \
-            QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(os.getcwd()), "Texture files (*.vram)")[0]
+            QFileDialog.getOpenFileName(self, "Open file", os.path.abspath(spr_file_path_original),
+                                        "Texture files (*.vram)")[0]
         if not os.path.exists(vram_file_path_original):
             msg = QMessageBox()
             msg.setWindowTitle("Error")
