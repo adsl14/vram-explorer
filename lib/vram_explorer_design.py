@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'RB2_vram_explorer_design.ui'
+# Form implementation generated from reading ui file 'vram_explorer_design.ui'
 #
 # Created by: PyQt5 UI code generator 5.9.2
 #
@@ -83,19 +83,6 @@ class Ui_MainWindow(object):
         self.mipMapsImageText.setText("")
         self.mipMapsImageText.setAlignment(QtCore.Qt.AlignCenter)
         self.mipMapsImageText.setObjectName("mipMapsImageText")
-        self.progressbarSwizzle = QtWidgets.QProgressBar(self.frame)
-        self.progressbarSwizzle.setEnabled(True)
-        self.progressbarSwizzle.setGeometry(QtCore.QRect(200, 315, 158, 21))
-        self.progressbarSwizzle.setAccessibleName("")
-        self.progressbarSwizzle.setMaximum(100)
-        self.progressbarSwizzle.setProperty("value", 0)
-        self.progressbarSwizzle.setAlignment(QtCore.Qt.AlignCenter)
-        self.progressbarSwizzle.setTextVisible(True)
-        self.progressbarSwizzle.setOrientation(QtCore.Qt.Horizontal)
-        self.progressbarSwizzle.setInvertedAppearance(False)
-        self.progressbarSwizzle.setTextDirection(QtWidgets.QProgressBar.TopToBottom)
-        self.progressbarSwizzle.setFormat("%p%")
-        self.progressbarSwizzle.setObjectName("progressbarSwizzle")
         self.horizontalLayout.addWidget(self.frame)
         self.exportAllButton = QtWidgets.QPushButton(self.centralwidget)
         self.exportAllButton.setGeometry(QtCore.QRect(90, 20, 75, 23))
@@ -141,7 +128,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "vram explorer 1.5.1"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "vram explorer 1.5.2"))
         self.exportButton.setText(_translate("MainWindow", "E&xport..."))
         self.importButton.setText(_translate("MainWindow", "I&mport..."))
         self.exportAllButton.setText(_translate("MainWindow", "Export all"))

@@ -281,7 +281,7 @@ def get_dxt_value(encoding_name):
         return 0
 
 
-def open_vram_stpz_file(progressbar_swizzle, vram_path):
+def open_vram_stpz_file(vram_path):
     global vram_file_size_old, tx2d_infos, tx2_datas
 
     with open(vram_path, mode="rb") as file:
@@ -320,16 +320,21 @@ def open_vram_stpz_file(progressbar_swizzle, vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                # Change the progressbar name
-                progressbar_swizzle.setFormat("Loading " + tx2_datas[i].name)
+                message = "The <b>" + tx2_datas[i].name + "</b> texture will be loaded. If the image is very large " \
+                                                          "it will take some time to load it, so don't close " \
+                                                          "the program even if you see it's not responding. " \
+                                                          "Click <b>OK</b> to start or wait until this " \
+                                                          "message closes"
+
+                CustomMessageBox.show_with_timeout(15, message, "Warning", icon=QMessageBox.Warning)
 
                 tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
-                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height, progressbar_swizzle)
+                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
 
                 tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
 
 
-def open_vram_file(progressbar_swizzle, vram_path):
+def open_vram_file(vram_path):
     global vram_file_size_old, tx2d_infos
 
     with open(vram_path, mode="rb") as file:
@@ -367,11 +372,16 @@ def open_vram_file(progressbar_swizzle, vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                # Change the progressbar name
-                progressbar_swizzle.setFormat("Loading " + tx2_datas[i].name)
+                message = "The <b>" + tx2_datas[i].name + "</b> texture will be loaded. If the image is very large " \
+                                                          "it will take some time to load it, so don't close " \
+                                                          "the program even if you see it's not responding. " \
+                                                          "Click <b>OK</b> to start or wait until this " \
+                                                          "message closes"
+
+                CustomMessageBox.show_with_timeout(15, message, "Warning", icon=QMessageBox.Warning)
 
                 tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
-                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height, progressbar_swizzle)
+                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
 
                 tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
 
@@ -397,6 +407,36 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
                                    .height))
 
 
+class CustomMessageBox(QMessageBox):
+
+    def __init__(self, *__args):
+        QMessageBox.__init__(self)
+        self.timeout = 0
+        self.autoclose = False
+        self.currentTime = 0
+
+    def showEvent(self, qshow_event):
+        self.currentTime = 0
+        if self.autoclose:
+            self.startTimer(1000)
+
+    def timerEvent(self, *args, **kwargs):
+        self.currentTime += 1
+        if self.currentTime >= self.timeout:
+            self.done(0)
+
+    @staticmethod
+    def show_with_timeout(timeout_seconds, message, title, icon=QMessageBox.Information, buttons=QMessageBox.Ok):
+        w = CustomMessageBox()
+        w.autoclose = True
+        w.timeout = timeout_seconds
+        w.setText(message)
+        w.setWindowTitle(title)
+        w.setIcon(icon)
+        w.setStandardButtons(buttons)
+        w.exec_()
+
+
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def __init__(self, *args, **kwargs):
@@ -405,7 +445,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # File tab
         self.actionOpen.triggered.connect(self.action_open_logic)
-        self.actionSave.triggered.connect(lambda x: self.action_save_logic(self.progressbarSwizzle))
+        self.actionSave.triggered.connect(self.action_save_logic)
         self.actionClose.triggered.connect(self.close)
 
         # About tab
@@ -425,9 +465,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.mipMapsImageText.setVisible(False)
         self.sizeImageText.setVisible(False)
         self.fileNameText.setVisible(False)
-
-        # Swizzle progress bar
-        self.progressbarSwizzle.setVisible(False)
 
     def action_export_logic(self):
 
@@ -594,9 +631,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                 tx2d_infos[current_selected_texture].height != height:
                             msg = QMessageBox()
                             msg.setWindowTitle("Error")
-                            msg.setText("The resolution for the modified file must be %dx%d\nYour file is %dx%d" % (
-                                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height,
-                                width, height))
+                            msg.setText("The resolution for the modified file must be %dx%d\nYour file is %dx%d"
+                                        % (tx2d_infos[current_selected_texture].width,
+                                           tx2d_infos[current_selected_texture].height,
+                                           width, height))
                             msg.exec()
                         # Check if the modified file is in 32 bits
                         elif number_bits != 32:
@@ -698,20 +736,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Load the data from the files
             open_spr_file(spr_file_path, 16)
-            open_vram_stpz_file(self.progressbarSwizzle, vram_file_path)
+            open_vram_stpz_file(vram_file_path)
 
         # Generic spr file. Don't need to convert
         else:
             spr_file_path = spr_file_path_original
             vram_file_path = vram_file_path_original
             open_spr_file(spr_file_path, 12)
-            open_vram_file(self.progressbarSwizzle, vram_file_path)
+            open_vram_file(vram_file_path)
 
         # Add the names to the list view
         current_selected_texture = 0
         model = QStandardItemModel()
         self.listView.setModel(model)
         item_0 = QStandardItem(tx2_datas[0].name)
+        item_0.setEditable(False)
         model.appendRow(item_0)
         self.listView.setCurrentIndex(model.indexFromItem(item_0))
         for tx2_data_element in tx2_datas[1:]:
@@ -749,7 +788,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.sizeImageText.setVisible(True)
 
     @staticmethod
-    def action_save_logic(progressbar_swizzle):
+    def action_save_logic():
 
         global spr_file_path_original, vram_file_path_original
 
@@ -862,14 +901,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         if tx2d_data.data_unswizzle == 255:
                             output_file.write(tx2_datas[texture_index].data[128:])
                         else:
-                            # Change the progressbar name
-                            progressbar_swizzle.setFormat("Saving " + tx2_datas[texture_index].name)
+
+                            message = "The <b>" + tx2d_data.name + "</b> texture will be saved. If the image " \
+                                          "is very large it will take some time to save it, so don't close " \
+                                          "the program even if you see it's not responding. " \
+                                          "Click <b>OK</b> to start or wait until this " \
+                                          "message closes"
+
+                            CustomMessageBox.show_with_timeout(15, message, "Warning", icon=QMessageBox.Warning)
 
                             data = swizzle_algorithm(tx2_datas[texture_index].data[128:],
                                                      tx2_datas[texture_index].data_unswizzle[54:],
                                                      tx2_datas[texture_index].indexes_unswizzle_algorithm,
                                                      tx2d_infos[texture_index].width,
-                                                     tx2d_infos[texture_index].height, progressbar_swizzle)
+                                                     tx2d_infos[texture_index].height)
                             output_file.write(data)
 
                     data = input_file.read()
@@ -936,7 +981,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "vram explorer 1.5.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "vram explorer 1.5.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
