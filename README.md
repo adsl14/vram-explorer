@@ -20,6 +20,7 @@ Support for png images. Now you can explore, export and import textures into tho
 
 Examples:
 
-<img src="images/museum_picture.jpg" alt="Museum picture" width="70%">
-
-<img src="images/versus_image.jpg" alt="Versus image" width="70%">
+<p float="left">
+  <img src="images/museum_picture.jpg" width="40%" />
+  <img src="images/versus_image.jpg" width="40%" /> 
+</p>
