@@ -471,7 +471,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # If there is no data_unswizzle loaded (255), we show the texture as DDS
         if tx2_datas[current_selected_texture].data_unswizzle == 255:
             # Save dds file
-            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(spr_file_path),
+            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()),
                                                                                       tx2_datas[
                                                                                           current_selected_texture]
                                                                                       .name + ".dds"),
@@ -481,7 +481,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         else:
             # Save bmp file
-            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(spr_file_path),
+            export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()),
                                                                                       tx2_datas[
                                                                                           current_selected_texture]
                                                                                       .name + ".bmp"),
