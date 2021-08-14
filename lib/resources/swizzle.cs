@@ -33,18 +33,16 @@ class Swizzle
     {
         int index = -1;
         List<byte> swizzled = new List<byte>();
-        int square = 0;
-        if (width > height)
+
+        // 1. y = 0, y < width; x = 0, x < width -> 0,0 to width, width
+        // 2. y = 0, y < width; x = width, x < height -> width,0 to height, width
+        // 3. y = width, y < height; x = 0, x < width -> 0,width to width, height
+        // 4. y = width, y < height; x = width, x < height width,width to height, height
+        
+        // 1.
+        for (int y = 0; y < width; y++)
         {
-            square = width;
-        }
-        else //you always have to pick the biggest of the two to create the square, and then eventually discard some data
-        {
-            square = height;
-        }
-        for (int y = 0; y < square; y++)
-        {
-            for (int x = 0; x < square; x++)
+            for (int x = 0; x < width; x++)
             {
                 index = calcZOrder(x, y);
 
@@ -70,9 +68,100 @@ class Swizzle
                 }
             }
         }
+
+        // 2.
+        for (int y = 0; y < width; y++)
+        {
+            for (int x = width; x < height; x++)
+            {
+                index = calcZOrder(x, y);
+
+                if (size > index * 4) //check that the index is available (might not be when we have a square bigger than the original width or height)
+                { 
+                    swizzled.Add(filedata[index * 4]);
+                    indexes.Add(index * 4);
+                    if (size > index * 4 + 1)
+                    {
+                        swizzled.Add(filedata[index * 4 + 1]);
+                        indexes.Add(index * 4 + 1);
+                        if (size > index * 4 + 2)
+                        {
+                            swizzled.Add(filedata[index * 4 + 2]);
+                            indexes.Add(index * 4 + 2);
+                            if (size > index * 4 + 3)
+                            {
+                                swizzled.Add(filedata[index * 4 + 3]);
+                                indexes.Add(index * 4 + 3);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3.
+        for (int y = width; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                index = calcZOrder(x, y);
+
+                if (size > index * 4) //check that the index is available (might not be when we have a square bigger than the original width or height)
+                { 
+                    swizzled.Add(filedata[index * 4]);
+                    indexes.Add(index * 4);
+                    if (size > index * 4 + 1)
+                    {
+                        swizzled.Add(filedata[index * 4 + 1]);
+                        indexes.Add(index * 4 + 1);
+                        if (size > index * 4 + 2)
+                        {
+                            swizzled.Add(filedata[index * 4 + 2]);
+                            indexes.Add(index * 4 + 2);
+                            if (size > index * 4 + 3)
+                            {
+                                swizzled.Add(filedata[index * 4 + 3]);
+                                indexes.Add(index * 4 + 3);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4.
+        for (int y = width; y < height; y++)
+        {
+            for (int x = width; x < height; x++)
+            {
+                index = calcZOrder(x, y);
+
+                if (size > index * 4) //check that the index is available (might not be when we have a square bigger than the original width or height)
+                { 
+                    swizzled.Add(filedata[index * 4]);
+                    indexes.Add(index * 4);
+                    if (size > index * 4 + 1)
+                    {
+                        swizzled.Add(filedata[index * 4 + 1]);
+                        indexes.Add(index * 4 + 1);
+                        if (size > index * 4 + 2)
+                        {
+                            swizzled.Add(filedata[index * 4 + 2]);
+                            indexes.Add(index * 4 + 2);
+                            if (size > index * 4 + 3)
+                            {
+                                swizzled.Add(filedata[index * 4 + 3]);
+                                indexes.Add(index * 4 + 3);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         filedata = swizzled.ToArray();
 
-        return filedata;
+        return filedata.ToArray();
     }
 
     public static void swizzle(byte[] filedataSwizzled, byte[] filedataUnSwizzled, string[] indexes)
