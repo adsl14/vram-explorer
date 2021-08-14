@@ -1,4 +1,4 @@
-import stat
+import stat, os
 from shutil import copyfile, rmtree, move
 
 import numpy as np
