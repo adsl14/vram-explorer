@@ -4,7 +4,6 @@ from shutil import copyfile, rmtree, move
 import numpy as np
 from PyQt5.QtGui import QImage, QPixmap, QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
-from lib.classes.SwizzleFunctions import *
 from lib.design.vram_explorer_design import *
 from lib.classes.SprpDataInfo import SprpDataInfo
 from lib.classes.SprpStruct import SprpStruct
