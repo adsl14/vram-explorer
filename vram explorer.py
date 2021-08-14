@@ -4,13 +4,13 @@ from shutil import copyfile, rmtree, move
 import numpy as np
 from PyQt5.QtGui import QImage, QPixmap, QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
-from lib.SwizzleFunctions import *
-from lib.vram_explorer_design import *
-from lib.SprpDataInfo import SprpDataInfo
-from lib.SprpStruct import SprpStruct
-from lib.StpkStruct import StpkStruct
-from lib.Tx2dInfo import Tx2dInfo
-from lib.Tx2Data import Tx2Data
+from lib.classes.SwizzleFunctions import *
+from lib.design.vram_explorer_design import *
+from lib.classes.SprpDataInfo import SprpDataInfo
+from lib.classes.SprpStruct import SprpStruct
+from lib.classes.StpkStruct import StpkStruct
+from lib.classes.Tx2dInfo import Tx2dInfo
+from lib.classes.Tx2Data import Tx2Data
 from pyglet import image
 from datetime import datetime
 
@@ -18,6 +18,10 @@ from datetime import datetime
 # STPZ file
 STPZ = "5354505a"
 stpz_file = False
+
+# resources path
+dbrb_compressor_path = os.path.join("lib", "resources", "dbrb_compressor.exe")
+swizzle_path = os.path.join("lib", "resources", "swizzle.exe")
 
 # number of bytes that usually reads the program
 bytes2Read = 4
@@ -293,14 +297,17 @@ def open_vram_stpz_file(vram_path):
         vram_file_size_old = int.from_bytes(file.read(bytes2Read), "big")
 
         # Get each texture
-        header_1 = "44 44 53 20 7C 00 00 00 07 10 00 00"
-        header_1 = bytes.fromhex(header_1)
-        header_3 = "00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " \
-                   "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 "
-        header_3 = bytes.fromhex(header_3)
+        header_1 = bytes.fromhex("44 44 53 20 7C 00 00 00 07 10 00 00")
+        header_3_1 = "00000000"
+        header_3_3 = "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000"
         for i in range(0, len(tx2d_infos)):
             header_2 = tx2d_infos[i].height.to_bytes(4, 'little') + tx2d_infos[i].width.to_bytes(4, 'little') + (
-                tx2d_infos[i].width * tx2d_infos[i].height).to_bytes(4, 'little')
+                tx2d_infos[i].data_size).to_bytes(4, 'little')
+
+            header_3_2 = tx2d_infos[i].mip_maps.to_bytes(4, 'little')
+
+            header_3 = bytes.fromhex(header_3_1) + header_3_2 + bytes.fromhex(header_3_3)
+
             header_4, header_5, header_6 = create_header(tx2d_infos[i].dxt_encoding)
             header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
@@ -309,7 +316,7 @@ def open_vram_stpz_file(vram_path):
             data_dds = header + data
             tx2_datas[i].data = data_dds
 
-            # Create unswizzle image if the encoding is 'RGBA' and the extension is 'png' (it takes a little time)
+            # Create unswizzle image if the encoding is 'RGBA' and the extension is 'png'
             if header_4.hex() == "41000000" and tx2_datas[i].extension == "png":
                 header_1_bmp = "42 4D"
                 header_2_bmp = (tx2d_infos[i].data_size + 54).to_bytes(4, 'little').hex()
@@ -320,18 +327,26 @@ def open_vram_stpz_file(vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                message = "The <b>" + tx2_datas[i].name + "</b> texture will be loaded. If the image is very large " \
-                                                          "it will take some time to load it, so don't close " \
-                                                          "the program even if you see it's not responding. " \
-                                                          "Click <b>OK</b> to start or wait until this " \
-                                                          "message closes"
+                # Write in disk the data swizzled
+                with open("tempSwizzledImage", mode="wb") as file:
+                    file.write(tx2_datas[i].data)
 
-                CustomMessageBox.show_with_timeout(15, message, "Warning", icon=QMessageBox.Warning)
+                # Run the exe file of 'swizzle.exe' with the option '-u' to unswizzle the image
+                args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + "-u" + "\""
+                os.system('cmd /c ' + args)
 
-                tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
-                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
+                # Get the data from the .exe
+                with open("tempUnSwizzledImage", mode="rb") as file:
+                    tx2_datas[i].data_unswizzle = file.read()
+                with open("Indexes.txt", mode="r") as file:
+                    tx2_datas[i].indexes_unswizzle_algorithm = file.read().split(";")[:-1] # [:-1] because swizzle.exe saves an '' element in the end
 
-                tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
+                # Remove the temp files
+                os.remove("tempSwizzledImage")
+                os.remove("tempUnSwizzledImage")
+                os.remove("Indexes.txt")
+
+                tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp) + tx2_datas[i].data_unswizzle
 
 
 def open_vram_file(vram_path):
@@ -352,7 +367,7 @@ def open_vram_file(vram_path):
         header_3 = bytes.fromhex(header_3)
         for i in range(0, len(tx2d_infos)):
             header_2 = tx2d_infos[i].height.to_bytes(4, 'little') + tx2d_infos[i].width.to_bytes(4, 'little') + (
-                tx2d_infos[i].width * tx2d_infos[i].height).to_bytes(4, 'little')
+                tx2d_infos[i].data_size).to_bytes(4, 'little')
             header_4, header_5, header_6 = create_header(tx2d_infos[i].dxt_encoding)
             header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
@@ -378,10 +393,24 @@ def open_vram_file(vram_path):
                                                           "Click <b>OK</b> to start or wait until this " \
                                                           "message closes"
 
-                CustomMessageBox.show_with_timeout(15, message, "Warning", icon=QMessageBox.Warning)
+                # Write in disk the data swizzled
+                with open("tempSwizzledImage", mode="wb") as file:
+                    file.write(tx2_datas[i].data)
 
-                tx2_datas[i].data_unswizzle, tx2_datas[i].indexes_unswizzle_algorithm = \
-                    unswizzle_algorithm(data, tx2d_infos[i].width, tx2d_infos[i].height)
+                # Run the exe file of 'swizzle.exe' with the option '-u' to unswizzle the image
+                args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + "-u" + "\""
+                os.system('cmd /c ' + args)
+
+                # Get the data from the .exe
+                with open("tempUnSwizzledImage", mode="rb") as file:
+                    tx2_datas[i].data_unswizzle = file.read()
+                with open("Indexes.txt", mode="r") as file:
+                    tx2_datas[i].indexes_unswizzle_algorithm = file.read().split(";")[:-1] # [:-1] because swizzle.exe saves an '' element in the end
+
+                # Remove the temp files
+                os.remove("tempSwizzledImage")
+                os.remove("tempUnSwizzledImage")
+                os.remove("Indexes.txt")
 
                 tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
 
@@ -405,36 +434,6 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
         size_image_text.setText(
             "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture]
                                    .height))
-
-
-class CustomMessageBox(QMessageBox):
-
-    def __init__(self, *__args):
-        QMessageBox.__init__(self)
-        self.timeout = 0
-        self.autoclose = False
-        self.currentTime = 0
-
-    def showEvent(self, qshow_event):
-        self.currentTime = 0
-        if self.autoclose:
-            self.startTimer(1000)
-
-    def timerEvent(self, *args, **kwargs):
-        self.currentTime += 1
-        if self.currentTime >= self.timeout:
-            self.done(0)
-
-    @staticmethod
-    def show_with_timeout(timeout_seconds, message, title, icon=QMessageBox.Information, buttons=QMessageBox.Ok):
-        w = CustomMessageBox()
-        w.autoclose = True
-        w.timeout = timeout_seconds
-        w.setText(message)
-        w.setWindowTitle(title)
-        w.setIcon(icon)
-        w.setStandardButtons(buttons)
-        w.exec_()
 
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -723,15 +722,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Execute the script in a command line for the spr file
             spr_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder, basename.replace(".spr", "_u.spr"))
-            args = os.path.join("lib",
-                                "dbrb_compressor.exe") + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
+            args = os.path.join(dbrb_compressor_path) + " \"" + spr_file_path_original + "\" \"" + spr_file_path + "\""
             os.system('cmd /c ' + args)
 
             # Execute the script in a command line for the vram file
             basename = os.path.basename(vram_file_path_original)
             vram_file_path = os.path.join(os.path.abspath(os.getcwd()), temp_folder,
                                           basename.replace(".vram", "_u.vram"))
-            args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + \
+            args = os.path.join(dbrb_compressor_path) + " \"" + \
                 vram_file_path_original + "\" \"" + vram_file_path + "\""
             os.system('cmd /c ' + args)
 
@@ -808,9 +806,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             # Create the folder where we save the modified files
             basename = os.path.basename(vram_file_path_original) \
                 .replace(".vram", datetime.now().strftime("_%d-%m-%Y_%H-%M-%S"))
-            path_output_files = os.path.join(os.path.abspath(os.getcwd()), "outputs", basename)
-            if not os.path.exists("outputs"):
-                os.mkdir("outputs")
+            path_output_folder = os.path.join(os.path.abspath(os.getcwd()), "outputs")
+            path_output_files = os.path.join(path_output_folder, basename)
+
+            if not os.path.exists(path_output_folder):
+                os.mkdir(path_output_folder)
             os.mkdir(path_output_files)
 
             # Default paths
@@ -903,20 +903,35 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                             output_file.write(tx2_datas[texture_index].data[128:])
                         else:
 
-                            message = "The <b>" + tx2d_data.name + "</b> texture will be saved. If the image " \
-                                          "is very large it will take some time to save it, so don't close " \
-                                          "the program even if you see it's not responding. " \
-                                          "Click <b>OK</b> to start or wait until this " \
-                                          "message closes"
+                            # Write in disk the data swizzled
+                            with open("tempSwizzledImage", mode="wb") as file:
+                                file.write(tx2_datas[texture_index].data)
 
-                            CustomMessageBox.show_with_timeout(15, message, "Warning", icon=QMessageBox.Warning)
+                            # Write in disk the data unswizzled
+                            with open("tempUnSwizzledImage", mode="wb") as file:
+                                file.write(tx2_datas[texture_index].data_unswizzle[54:])
 
-                            data = swizzle_algorithm(tx2_datas[texture_index].data[128:],
-                                                     tx2_datas[texture_index].data_unswizzle[54:],
-                                                     tx2_datas[texture_index].indexes_unswizzle_algorithm,
-                                                     tx2d_infos[texture_index].width,
-                                                     tx2d_infos[texture_index].height)
-                            output_file.write(data)
+                            # Write in disk the indexes
+                            with open("Indexes.txt", mode="w") as file:
+                                for index in tx2_datas[texture_index].indexes_unswizzle_algorithm:
+                                    file.write(index + ";")    
+
+                            # Run the exe file of 'swizzle.exe' with the option '-s' to swizzle the image
+                            args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + \
+                                "tempUnSwizzledImage" + "\" \"" + "Indexes.txt" + "\" \"" +"-s" + "\""
+                            os.system('cmd /c ' + args)
+
+                            # Get the data from the .exe
+                            with open("tempSwizzledImageModified", mode="rb") as file:
+                                tx2_datas[texture_index].data = file.read()
+
+                            # Remove the temp files
+                            os.remove("tempSwizzledImage")
+                            os.remove("tempUnSwizzledImage")
+                            os.remove("Indexes.txt")
+                            os.remove("tempSwizzledImageModified")
+
+                            output_file.write(tx2_datas[texture_index].data)
 
                     data = input_file.read()
                     output_file.write(data)
@@ -941,14 +956,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # Output for the spr file
                 basename_spr = os.path.basename(spr_file_path_original)
                 spr_file_path_modified = os.path.join(path_output_files, basename_spr)
-                args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + spr_export_path + "\" \"" \
+                args = os.path.join(dbrb_compressor_path) + " \"" + spr_export_path + "\" \"" \
                     + spr_file_path_modified + "\""
                 os.system('cmd /c ' + args)
 
                 # Output for the vram file
                 basename_vram = os.path.basename(vram_file_path_original)
                 vram_file_path_modified = os.path.join(path_output_files, basename_vram)
-                args = os.path.join("lib", "dbrb_compressor.exe") + " \"" + vram_export_path + "\" \"" \
+                args = os.path.join(dbrb_compressor_path) + " \"" + vram_export_path + "\" \"" \
                     + vram_file_path_modified + "\" "
                 os.system('cmd /c ' + args)
 
@@ -982,7 +997,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "vram explorer 1.5.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "vram explorer 1.6 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
