@@ -51,71 +51,66 @@ textures_index_edited = []
 offset_quanty_difference = np.array(0)
 
 
-def show_dds_image(imageTexture, texture_data, width, height):
+def show_dds_image(imageTexture, texture_data, width, height, texture_path="temp.dds"):
+    
     try:
-        # Create the dds in disk and open it
-        file = open("temp.dds", mode="wb")
-        file.write(texture_data)
-        file.close()
-        img = read_dds_file("temp.dds")
+
+        if(texture_data is not None):
+            # Create the dds in disk and open it
+            file = open(texture_path, mode="wb")
+            file.write(texture_data)
+            file.close()
+
+        img = read_dds_file(texture_path)
 
         mpixmap = QPixmap()
         mpixmap = QPixmap.fromImage(img)
 
         # If the image is higher in width or height from the imageTexture,
         # we will reduce the size maintaing the aspect ratio
-        if(width == height):
-             if(width > imageTexture.width()):
+        if width == height:
+             if width > imageTexture.width():
                 mpixmap = mpixmap.scaled(imageTexture.width(), imageTexture.width())
         else:
-            if(width > height):
-                if(width > imageTexture.width()):
+            if width > height:
+                if width > imageTexture.width():
                    newHeight = int ((height / width) * imageTexture.width())
                    mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
-                elif(height > imageTexture.height()):
-                   newWidth = int( (width / height) * imageTexture.height())
-                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
             else:
-                if(height > imageTexture.height()):
+                if height > imageTexture.height():
                    newWidth = int( (width / height) * imageTexture.height())
                    mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
-                elif(width > imageTexture.width()):
-                   newHeight = int ((height / width) * imageTexture.width())
-                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
 
         # Show the image
         imageTexture.setPixmap(mpixmap)
     except OSError:
         imageTexture.clear()
 
-    os.remove("temp.dds")
+    if texture_data is not None:
+        os.remove(texture_path)
 
 
 def show_bmp_image(imageTexture, texture_data, width, height):
+
     try:
+
         mpixmap = QPixmap()
         mpixmap.loadFromData(texture_data, "BMP")
 
         # If the image is higher in width or height from the imageTexture,
         # we will reduce the size maintaing the aspect ratio
-        if(width == height):
-            if(width > imageTexture.width()):
+        if width == height:
+             if width > imageTexture.width():
                 mpixmap = mpixmap.scaled(imageTexture.width(), imageTexture.width())
         else:
-            if(width > height):
-                if(width > imageTexture.width()):
+            if width > height:
+                if width > imageTexture.width():
                    newHeight = int ((height / width) * imageTexture.width())
                    mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
-                elif(height > imageTexture.height()):
-                   newWidth = int( (width / height) * imageTexture.height())
-                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
             else:
-                if(height > imageTexture.height()):
+                if height > imageTexture.height():
                    newWidth = int( (width / height) * imageTexture.height())
                    mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
-                elif(width > imageTexture.width()):
-                   newHeight = int ((height / width) * imageTexture.width())
-                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
 
         imageTexture.setPixmap(mpixmap)
     except OSError:
@@ -646,10 +641,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                         try:
                             # Show texture in the program
-                            img = read_dds_file(import_path)
+                            show_dds_image(self.imageTexture, None, width, height, import_path)
 
-                            # Show the image
-                            self.imageTexture.setPixmap(QPixmap.fromImage(img))
                         except OSError:
                             self.imageTexture.clear()
                     else:
@@ -706,11 +699,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                             try:
                                 # Show texture in the program
-                                mpixmap = QPixmap()
-                                mpixmap.loadFromData(data, "BMP")
+                                show_bmp_image(self.imageTexture, data, width, height)
 
-                                # Show the image
-                                self.imageTexture.setPixmap(mpixmap)
                             except OSError:
                                 self.imageTexture.clear()
                     else:
@@ -1045,7 +1035,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "vram explorer 1.6.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "vram explorer 1.6.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
