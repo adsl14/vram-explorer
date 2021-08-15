@@ -142,7 +142,7 @@ def read_dds_file(file_path):
     pitch = tex.width * len(_format)
     pixels = tex.get_data(_format, pitch)
 
-    img = QImage(pixels, tex.width, tex.height, QImage.Format_RGB32)
+    img = QImage(pixels, tex.width, tex.height, QImage.Format_ARGB32)
     img = img.rgbSwapped()
 
     return img
