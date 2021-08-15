@@ -51,28 +51,75 @@ textures_index_edited = []
 offset_quanty_difference = np.array(0)
 
 
-def show_dds_image(imagetexture, texture_data):
+def show_dds_image(imageTexture, texture_data, width, height):
     try:
         # Create the dds in disk and open it
         file = open("temp.dds", mode="wb")
         file.write(texture_data)
         file.close()
         img = read_dds_file("temp.dds")
+
+        mpixmap = QPixmap()
+        mpixmap = QPixmap.fromImage(img)
+
+        # If the image is higher in width or height from the imageTexture,
+        # we will reduce the size maintaing the aspect ratio
+        if(width == height):
+             if(width > imageTexture.width()):
+                mpixmap = mpixmap.scaled(imageTexture.width(), imageTexture.width())
+        else:
+            if(width > height):
+                if(width > imageTexture.width()):
+                   newHeight = int ((height / width) * imageTexture.width())
+                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
+                elif(height > imageTexture.height()):
+                   newWidth = int( (width / height) * imageTexture.height())
+                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
+            else:
+                if(height > imageTexture.height()):
+                   newWidth = int( (width / height) * imageTexture.height())
+                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
+                elif(width > imageTexture.width()):
+                   newHeight = int ((height / width) * imageTexture.width())
+                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
+
         # Show the image
-        imagetexture.setPixmap(QPixmap.fromImage(img))
+        imageTexture.setPixmap(mpixmap)
     except OSError:
-        imagetexture.clear()
+        imageTexture.clear()
 
     os.remove("temp.dds")
 
 
-def show_bmp_image(imagetexture, texture_data):
+def show_bmp_image(imageTexture, texture_data, width, height):
     try:
         mpixmap = QPixmap()
         mpixmap.loadFromData(texture_data, "BMP")
-        imagetexture.setPixmap(mpixmap)
+
+        # If the image is higher in width or height from the imageTexture,
+        # we will reduce the size maintaing the aspect ratio
+        if(width == height):
+            if(width > imageTexture.width()):
+                mpixmap = mpixmap.scaled(imageTexture.width(), imageTexture.width())
+        else:
+            if(width > height):
+                if(width > imageTexture.width()):
+                   newHeight = int ((height / width) * imageTexture.width())
+                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
+                elif(height > imageTexture.height()):
+                   newWidth = int( (width / height) * imageTexture.height())
+                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
+            else:
+                if(height > imageTexture.height()):
+                   newWidth = int( (width / height) * imageTexture.height())
+                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
+                elif(width > imageTexture.width()):
+                   newHeight = int ((height / width) * imageTexture.width())
+                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
+
+        imageTexture.setPixmap(mpixmap)
     except OSError:
-        imagetexture.clear()
+        imageTexture.clear()
 
 
 def del_rw(name_method, path, error):
@@ -423,9 +470,11 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
         # If there is no data_sunwizzle loaded (255), we show the texture as DDS
         if tx2_datas[current_selected_texture].data_unswizzle == 255:
             # Create the dds in disk and open it
-            show_dds_image(image_texture, tx2_datas[current_selected_texture].data)
+            show_dds_image(image_texture, tx2_datas[current_selected_texture].data, 
+                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
         else:
-            show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_unswizzle)
+            show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_unswizzle, 
+                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
 
         encoding_image_text.setText(
             "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
@@ -763,9 +812,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # If there is no data_unswizzle loaded (255), we show the texture as DDS
         if tx2_datas[0].data_unswizzle == 255:
             # Create the dds in disk and open it
-            show_dds_image(self.imageTexture, tx2_datas[0].data)
+            show_dds_image(self.imageTexture, tx2_datas[0].data, tx2d_infos[0].width, tx2d_infos[0].height)
         else:
-            show_bmp_image(self.imageTexture, tx2_datas[0].data_unswizzle)
+            show_bmp_image(self.imageTexture, tx2_datas[0].data_unswizzle, tx2d_infos[0].width, tx2d_infos[0].height)
 
         # Show the buttons
         self.exportButton.setVisible(True)
@@ -996,7 +1045,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "vram explorer 1.6.1 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "vram explorer 1.6.2 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod

@@ -59,7 +59,7 @@ class Ui_MainWindow(object):
         self.imageTexture.setPalette(palette)
         self.imageTexture.setAutoFillBackground(False)
         self.imageTexture.setText("")
-        self.imageTexture.setScaledContents(True)
+        self.imageTexture.setScaledContents(False)
         self.imageTexture.setAlignment(QtCore.Qt.AlignCenter)
         self.imageTexture.setObjectName("imageTexture")
         self.exportButton = QtWidgets.QPushButton(self.frame)
@@ -128,7 +128,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "vram explorer 1.6.1"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "vram explorer 1.6.2"))
         self.exportButton.setText(_translate("MainWindow", "E&xport..."))
         self.importButton.setText(_translate("MainWindow", "I&mport..."))
         self.exportAllButton.setText(_translate("MainWindow", "Export all"))
