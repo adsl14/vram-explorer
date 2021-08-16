@@ -1,4 +1,5 @@
-import stat, os
+import stat
+import os
 from shutil import copyfile, rmtree, move
 
 import numpy as np
@@ -21,6 +22,11 @@ stpz_file = False
 # resources path
 dbrb_compressor_path = os.path.join("lib", "resources", "dbrb_compressor.exe")
 swizzle_path = os.path.join("lib", "resources", "swizzle.exe")
+
+# Warning base message when importing a texture with differences in encoding, size, mipmaps, etc
+message_base_import_DDS_start = "The new texture has the following differences from the original:"
+message_base_import_DDS_end = "The textures could show in the game not propertly. Do you want to continue?"
+message_base_import_BMP_start = "There are some errors while importing the texture:"
 
 # number of bytes that usually reads the program
 bytes2Read = 4
@@ -51,11 +57,57 @@ textures_index_edited = []
 offset_quanty_difference = np.array(0)
 
 
-def show_dds_image(imageTexture, texture_data, width, height, texture_path="temp.dds"):
+def validation_dds_imported_texture(tx2d_info, width, height, mip_maps, dxt_encoding, number_bits):
+
+    message = ""
+
+    # Check resolution
+    if width != tx2d_info.width or height != tx2d_info.height:
+        message = "<li> The size should be " + str(tx2d_info.width) \
+            + "x" + str(tx2d_info.height) \
+            + ". The imported texture is " + str(width) + "x" + str(height) + ".</li>"
+
+    # Check mip_maps
+    if tx2d_info.mip_maps != mip_maps:
+        message = message + "<li> The Mipmaps should be " + str(tx2d_info.mip_maps) \
+            + ". The imported texture has " + str(mip_maps) + ".</li>"
+
+    # Check encoding
+    if tx2d_info.dxt_encoding != dxt_encoding:
+        message = message + "<li> The encoding should be " + get_dxt_byte(tx2d_info.dxt_encoding).decode('utf-8') \
+            + ". The imported texture is " + get_dxt_byte(dxt_encoding).decode('utf-8') + ".</li>"
+
+    # Check number of bits (only if the texture is RGBA -> shadder)
+    if dxt_encoding == 0 and 32 != number_bits:
+        message = message + "<li> The number of bits should be " + str(32) \
+            + " bits. The imported texture has " + str(number_bits) + " bits.</li>"
+
+    return message
+
+
+def validation_bmp_imported_texture(tx2d_info, width, height, number_bits):
+
+    message = ""
+
+    # Check resolution
+    if width != tx2d_info.width or height != tx2d_info.height:
+        message = "<li>The size has to be " + str(tx2d_info.width) \
+            + "x" + str(tx2d_info.height) \
+            + " and not " + str(width) + "x" + str(height) + ".</li>"
+
+    # Check number of bits
+    if 32 != number_bits:
+        message = message + "<li>The number of bits has to be " + str(32) \
+            + " and not " + str(number_bits) + " bits.</li>"
+
+    return message    
+
+
+def show_dds_image(image_texture, texture_data, width, height, texture_path="temp.dds"):
     
     try:
 
-        if(texture_data is not None):
+        if texture_data is not None:
             # Create the dds in disk and open it
             file = open(texture_path, mode="wb")
             file.write(texture_data)
@@ -63,34 +115,33 @@ def show_dds_image(imageTexture, texture_data, width, height, texture_path="temp
 
         img = read_dds_file(texture_path)
 
-        mpixmap = QPixmap()
         mpixmap = QPixmap.fromImage(img)
 
         # If the image is higher in width or height from the imageTexture,
         # we will reduce the size maintaing the aspect ratio
         if width == height:
-             if width > imageTexture.width():
-                mpixmap = mpixmap.scaled(imageTexture.width(), imageTexture.width())
+            if width > image_texture.width():
+                mpixmap = mpixmap.scaled(image_texture.width(), image_texture.width())
         else:
             if width > height:
-                if width > imageTexture.width():
-                   newHeight = int ((height / width) * imageTexture.width())
-                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
+                if width > image_texture.width():
+                    new_height = int((height / width) * image_texture.width())
+                    mpixmap = mpixmap.scaled(image_texture.width(), new_height)
             else:
-                if height > imageTexture.height():
-                   newWidth = int( (width / height) * imageTexture.height())
-                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
+                if height > image_texture.height():
+                    new_width = int((width / height) * image_texture.height())
+                    mpixmap = mpixmap.scaled(new_width, image_texture.height())
 
         # Show the image
-        imageTexture.setPixmap(mpixmap)
+        image_texture.setPixmap(mpixmap)
     except OSError:
-        imageTexture.clear()
+        image_texture.clear()
 
     if texture_data is not None:
         os.remove(texture_path)
 
 
-def show_bmp_image(imageTexture, texture_data, width, height):
+def show_bmp_image(image_texture, texture_data, width, height):
 
     try:
 
@@ -100,21 +151,21 @@ def show_bmp_image(imageTexture, texture_data, width, height):
         # If the image is higher in width or height from the imageTexture,
         # we will reduce the size maintaing the aspect ratio
         if width == height:
-             if width > imageTexture.width():
-                mpixmap = mpixmap.scaled(imageTexture.width(), imageTexture.width())
+            if width > image_texture.width():
+                mpixmap = mpixmap.scaled(image_texture.width(), image_texture.width())
         else:
             if width > height:
-                if width > imageTexture.width():
-                   newHeight = int ((height / width) * imageTexture.width())
-                   mpixmap = mpixmap.scaled(imageTexture.width(), newHeight)
+                if width > image_texture.width():
+                    new_height = int((height / width) * image_texture.width())
+                    mpixmap = mpixmap.scaled(image_texture.width(), new_height)
             else:
-                if height > imageTexture.height():
-                   newWidth = int( (width / height) * imageTexture.height())
-                   mpixmap = mpixmap.scaled(newWidth, imageTexture.height())
+                if height > image_texture.height():
+                    new_width = int((width / height) * image_texture.height())
+                    mpixmap = mpixmap.scaled(new_width, image_texture.height())
 
-        imageTexture.setPixmap(mpixmap)
+        image_texture.setPixmap(mpixmap)
     except OSError:
-        imageTexture.clear()
+        image_texture.clear()
 
 
 def del_rw(name_method, path, error):
@@ -369,18 +420,19 @@ def open_vram_stpz_file(vram_path):
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
                 # Write in disk the data swizzled
-                with open("tempSwizzledImage", mode="wb") as file:
-                    file.write(tx2_datas[i].data)
+                with open("tempSwizzledImage", mode="wb") as file_temp:
+                    file_temp.write(tx2_datas[i].data)
 
                 # Run the exe file of 'swizzle.exe' with the option '-u' to unswizzle the image
                 args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + "-u" + "\""
                 os.system('cmd /c ' + args)
 
                 # Get the data from the .exe
-                with open("tempUnSwizzledImage", mode="rb") as file:
-                    tx2_datas[i].data_unswizzle = file.read()
-                with open("Indexes.txt", mode="r") as file:
-                    tx2_datas[i].indexes_unswizzle_algorithm = file.read().split(";")[:-1] # [:-1] because swizzle.exe saves an '' element in the end
+                with open("tempUnSwizzledImage", mode="rb") as file_temp:
+                    tx2_datas[i].data_unswizzle = file_temp.read()
+                with open("Indexes.txt", mode="r") as file_temp:
+                    tx2_datas[i].indexes_unswizzle_algorithm = file_temp.read().split(";")[:-1]
+                    # [:-1] because swizzle.exe saves an '' element in the end
 
                 # Remove the temp files
                 os.remove("tempSwizzledImage")
@@ -428,25 +480,20 @@ def open_vram_file(vram_path):
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
                 header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
 
-                message = "The <b>" + tx2_datas[i].name + "</b> texture will be loaded. If the image is very large " \
-                                                          "it will take some time to load it, so don't close " \
-                                                          "the program even if you see it's not responding. " \
-                                                          "Click <b>OK</b> to start or wait until this " \
-                                                          "message closes"
-
                 # Write in disk the data swizzled
-                with open("tempSwizzledImage", mode="wb") as file:
-                    file.write(tx2_datas[i].data)
+                with open("tempSwizzledImage", mode="wb") as file_temp:
+                    file_temp.write(tx2_datas[i].data)
 
                 # Run the exe file of 'swizzle.exe' with the option '-u' to unswizzle the image
                 args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + "-u" + "\""
                 os.system('cmd /c ' + args)
 
                 # Get the data from the .exe
-                with open("tempUnSwizzledImage", mode="rb") as file:
-                    tx2_datas[i].data_unswizzle = file.read()
-                with open("Indexes.txt", mode="r") as file:
-                    tx2_datas[i].indexes_unswizzle_algorithm = file.read().split(";")[:-1] # [:-1] because swizzle.exe saves an '' element in the end
+                with open("tempUnSwizzledImage", mode="rb") as file_temp:
+                    tx2_datas[i].data_unswizzle = file_temp.read()
+                with open("Indexes.txt", mode="r") as file_temp:
+                    tx2_datas[i].indexes_unswizzle_algorithm = file_temp.read().split(";")[:-1]
+                    # [:-1] because swizzle.exe saves an '' element in the end
 
                 # Remove the temp files
                 os.remove("tempSwizzledImage")
@@ -465,11 +512,11 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
         # If there is no data_sunwizzle loaded (255), we show the texture as DDS
         if tx2_datas[current_selected_texture].data_unswizzle == 255:
             # Create the dds in disk and open it
-            show_dds_image(image_texture, tx2_datas[current_selected_texture].data, 
-                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
+            show_dds_image(image_texture, tx2_datas[current_selected_texture].data,
+                           tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
         else:
-            show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_unswizzle, 
-                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
+            show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_unswizzle,
+                           tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
 
         encoding_image_text.setText(
             "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
@@ -592,59 +639,83 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         file.seek(12)
                         height = int.from_bytes(file.read(bytes2Read), 'little')
                         width = int.from_bytes(file.read(bytes2Read), 'little')
+                        # Get the mipmaps
                         file.seek(28)
                         mip_maps = int.from_bytes(file.read(1), 'big')
                         # Get the dxtencoding
                         file.seek(84)
                         dxt_encoding = get_dxt_value(file.read(bytes2Read).decode())
+                        # Get the number of bits
+                        number_bits = int.from_bytes(file.read(bytes2Read), 'little')
 
-                        # Get all the data
-                        file.seek(0)
-                        data = file.read()
+                        message = validation_dds_imported_texture(tx2d_infos[current_selected_texture],
+                                                                  width, height, mip_maps, dxt_encoding, number_bits)
+                        
+                        # If the message is empty, there is no differences between original and modified one
+                        msg = QMessageBox()
+                        message_import_result = msg.Yes
+                        if message:
 
-                        # Importing the texture
-                        # Get the difference in size between original and modified in order to change the offsets
-                        len_data = len(data[128:])
-                        difference = len_data - tx2d_infos[current_selected_texture].data_size
-                        if difference != 0:
-                            tx2d_infos[current_selected_texture].data_size = len_data
-                            offset_quanty_difference[current_selected_texture] = difference
+                            # Concatenate the base message and the differences the tool has found
+                            message = message_base_import_DDS_start + "<ul>" + message + "</ul>" \
+                                      + message_base_import_DDS_end
 
-                        # Change width
-                        if tx2d_infos[current_selected_texture].width != width:
-                            tx2d_infos[current_selected_texture].width = width
-                            self.sizeImageText.setText(
-                                "Resolution: %dx%d" % (width, tx2d_infos[current_selected_texture].height))
-                        # Change height
-                        if tx2d_infos[current_selected_texture].height != height:
-                            tx2d_infos[current_selected_texture].height = height
-                            self.sizeImageText.setText(
-                                "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, height))
+                            # Ask to the user if he/she is sure that wants to replace the texture
+                            msg.setWindowTitle("Warning")
+                            message_import_result = msg.question(self, '', message, msg.Yes | msg.No)
 
-                        # Change mipMaps
-                        if tx2d_infos[current_selected_texture].mip_maps != mip_maps:
-                            tx2d_infos[current_selected_texture].mip_maps = mip_maps
-                            self.mipMapsImageText.setText("Mipmaps: %s" % mip_maps)
+                        # If the users click on 'Yes', the modified texture will be imported
+                        if message_import_result == msg.Yes:
 
-                        # Change dxt encoding
-                        if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
-                            tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
-                            self.encodingImageText.setText("Encoding: %s" %
-                                                           (get_dxt_byte(dxt_encoding).decode('utf-8')))
+                            # Get all the data
+                            file.seek(0)
+                            data = file.read()
 
-                        # Change texture in the array
-                        tx2_datas[current_selected_texture].data = data
+                            # Importing the texture
+                            # Get the difference in size between original and modified in order to change the offsets
+                            len_data = len(data[128:])
+                            difference = len_data - tx2d_infos[current_selected_texture].data_size
+                            if difference != 0:
+                                tx2d_infos[current_selected_texture].data_size = len_data
+                                offset_quanty_difference[current_selected_texture] = difference
 
-                        # Add the index texture that has been modified (if it was added before, we won't added twice)
-                        if current_selected_texture not in textures_index_edited:
-                            textures_index_edited.append(current_selected_texture)
+                            # Change width
+                            if tx2d_infos[current_selected_texture].width != width:
+                                tx2d_infos[current_selected_texture].width = width
+                                self.sizeImageText.setText(
+                                    "Resolution: %dx%d" % (width, tx2d_infos[current_selected_texture].height))
+                            # Change height
+                            if tx2d_infos[current_selected_texture].height != height:
+                                tx2d_infos[current_selected_texture].height = height
+                                self.sizeImageText.setText(
+                                    "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, height))
 
-                        try:
-                            # Show texture in the program
-                            show_dds_image(self.imageTexture, None, width, height, import_path)
+                            # Change mipMaps
+                            if tx2d_infos[current_selected_texture].mip_maps != mip_maps:
+                                tx2d_infos[current_selected_texture].mip_maps = mip_maps
+                                self.mipMapsImageText.setText("Mipmaps: %s" % mip_maps)
 
-                        except OSError:
-                            self.imageTexture.clear()
+                            # Change dxt encoding
+                            if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
+                                tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
+                                self.encodingImageText.setText("Encoding: %s" %
+                                                               (get_dxt_byte(dxt_encoding).decode('utf-8')))
+
+                            # Change texture in the array
+                            tx2_datas[current_selected_texture].data = data
+
+                            # Add the index texture that has been modified
+                            # (if it was added before, we won't added twice)
+                            if current_selected_texture not in textures_index_edited:
+                                textures_index_edited.append(current_selected_texture)
+
+                            try:
+                                # Show texture in the program
+                                show_dds_image(self.imageTexture, None, width, height, import_path)
+
+                            except OSError:
+                                self.imageTexture.clear()
+
                     else:
                         msg = QMessageBox()
                         msg.setWindowTitle("Error")
@@ -666,22 +737,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         file.seek(28)
                         number_bits = int.from_bytes(file.read(2), 'little')
 
-                        # Check if the size of original and modified one are the same
-                        if tx2d_infos[current_selected_texture].width != width or \
-                                tx2d_infos[current_selected_texture].height != height:
+                        # Validate the BMP imported texture
+                        message = validation_bmp_imported_texture(tx2d_infos[current_selected_texture],
+                                                                  width, height, number_bits)
+
+                        if message:
                             msg = QMessageBox()
                             msg.setWindowTitle("Error")
-                            msg.setText("The resolution for the modified file must be %dx%d\nYour file is %dx%d"
-                                        % (tx2d_infos[current_selected_texture].width,
-                                           tx2d_infos[current_selected_texture].height,
-                                           width, height))
-                            msg.exec()
-                        # Check if the modified file is in 32 bits
-                        elif number_bits != 32:
-                            msg = QMessageBox()
-                            msg.setWindowTitle("Error")
-                            msg.setText("The number of bits for the modified file must be %d bits\nYour file is %d bits"
-                                        % (32, number_bits))
+                            msg.setText(message_base_import_BMP_start + "<ul>" + message + "</ul>")
                             msg.exec()
                         else:
                             # Get all the data
@@ -956,7 +1019,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                             # Run the exe file of 'swizzle.exe' with the option '-s' to swizzle the image
                             args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + \
-                                "tempUnSwizzledImage" + "\" \"" + "Indexes.txt" + "\" \"" +"-s" + "\""
+                                "tempUnSwizzledImage" + "\" \"" + "Indexes.txt" + "\" \"" + "-s" + "\""
                             os.system('cmd /c ' + args)
 
                             # Get the data from the .exe
