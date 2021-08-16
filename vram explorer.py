@@ -80,7 +80,7 @@ def validation_dds_imported_texture(tx2d_info, width, height, mip_maps, dxt_enco
     # Check number of bits (only if the texture is RGBA -> shadder)
     if dxt_encoding == 0 and 32 != number_bits:
         message = message + "<li> The number of bits should be " + str(32) \
-            + " bits. The imported texture has " + str(number_bits) + " bits.</li>"
+            + ". The imported texture has " + str(number_bits) + " bits.</li>"
 
     return message
 
@@ -650,7 +650,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                         message = validation_dds_imported_texture(tx2d_infos[current_selected_texture],
                                                                   width, height, mip_maps, dxt_encoding, number_bits)
-                        
+
                         # If the message is empty, there is no differences between original and modified one
                         msg = QMessageBox()
                         message_import_result = msg.Yes
