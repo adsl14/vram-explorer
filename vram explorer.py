@@ -197,7 +197,7 @@ def read_dds_file(file_path):
 def open_spr_file(spr_path, start_pointer):
     with open(spr_path, mode='rb') as file:
 
-        # Move the pointer to the pos 16 or 12 and get the offset of the header
+        # Move the pointer to the pos 16 (STPZ -> STPK) or 12 (SPR) and get the offset of the header
         file.seek(start_pointer)
         stpk_struct.data_offset = int.from_bytes(file.read(bytes2Read), "big")
 
@@ -342,51 +342,24 @@ def open_spr_file(spr_path, start_pointer):
             tx2d_infos.append(tx2_d_info)
 
 
-def create_header(value):
-    if value == 8:
-        return bytes.fromhex("04000000"), "DXT1".encode(), bytes.fromhex(
-            "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
-            "00 00 00 00 00 00 ".strip())
-    elif value == 24 or value == 32:
-        return bytes.fromhex("04000000"), "DXT5".encode(), bytes.fromhex(
-            "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
-            "00 00 00 00 00 00 ".strip())
-    else:
-        return bytes.fromhex("41000000"), bytes.fromhex("00000000"), bytes.fromhex(
-            "20 00 00 00 00 00 FF 00 00 FF 00 00 FF 00 00 00 00 00 00 FF 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
-            "00 00 00 00 00 00".strip())
-
-
-def get_dxt_byte(value):
-    # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
-    if value == 8:
-        return "DXT1".encode()
-    elif value == 24 or value == 32:
-        return "DXT5".encode()
-    else:
-        return "RGBA".encode()
-
-
-def get_dxt_value(encoding_name):
-    # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
-    if encoding_name == "DXT1":
-        return 8
-    elif encoding_name == "DXT5":
-        return 24
-    else:
-        return 0
-
-
-def open_vram_stpz_file(vram_path):
+def open_vram_file(vram_path):
     global vram_file_size_old, tx2d_infos, tx2_datas
 
     with open(vram_path, mode="rb") as file:
-        # Move to the position 16, where it tells the offset of the file where the texture starts
-        file.seek(16)
-        texture_offset = int.from_bytes(file.read(bytes2Read), "big")
 
-        # The size of the file is in position 20
-        vram_file_size_old = int.from_bytes(file.read(bytes2Read), "big")
+        if stpz_file:
+            # Move to the position 16, where it tells the offset of the file where the texture starts
+            file.seek(16)
+            texture_offset = int.from_bytes(file.read(bytes2Read), "big")
+
+            # The size of the file is in position 20
+            vram_file_size_old = int.from_bytes(file.read(bytes2Read), "big")
+        else:
+            # Move to the position 0, where it tells the offset of the file where the texture starts
+            texture_offset = 0
+
+            # The size of the file is the size of the texture
+            vram_file_size_old = tx2d_infos[0].data_size
 
         # Get each texture
         header_1 = bytes.fromhex("44 44 53 20 7C 00 00 00 07 10 00 00")
@@ -442,65 +415,39 @@ def open_vram_stpz_file(vram_path):
                 tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp) + tx2_datas[i].data_unswizzle
 
 
-def open_vram_file(vram_path):
-    global vram_file_size_old, tx2d_infos
+def create_header(value):
+    if value == 8:
+        return bytes.fromhex("04000000"), "DXT1".encode(), bytes.fromhex(
+            "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
+            "00 00 00 00 00 00 ".strip())
+    elif value == 24 or value == 32:
+        return bytes.fromhex("04000000"), "DXT5".encode(), bytes.fromhex(
+            "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
+            "00 00 00 00 00 00 ".strip())
+    else:
+        return bytes.fromhex("41000000"), bytes.fromhex("00000000"), bytes.fromhex(
+            "20 00 00 00 00 00 FF 00 00 FF 00 00 FF 00 00 00 00 00 00 FF 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
+            "00 00 00 00 00 00".strip())
 
-    with open(vram_path, mode="rb") as file:
-        # Move to the position 0, where it tells the offset of the file where the texture starts
-        texture_offset = 0
 
-        # The size of the file is the size of the texture
-        vram_file_size_old = tx2d_infos[0].data_size
+def get_dxt_byte(value):
+    # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
+    if value == 8:
+        return "DXT1".encode()
+    elif value == 24 or value == 32:
+        return "DXT5".encode()
+    else:
+        return "RGBA".encode()
 
-        # Get each texture
-        header_1 = "44 44 53 20 7C 00 00 00 07 10 00 00"
-        header_1 = bytes.fromhex(header_1)
-        header_3 = "00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " \
-                   "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 "
-        header_3 = bytes.fromhex(header_3)
-        for i in range(0, len(tx2d_infos)):
-            header_2 = tx2d_infos[i].height.to_bytes(4, 'little') + tx2d_infos[i].width.to_bytes(4, 'little') + (
-                tx2d_infos[i].data_size).to_bytes(4, 'little')
-            header_4, header_5, header_6 = create_header(tx2d_infos[i].dxt_encoding)
-            header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
 
-            file.seek(tx2d_infos[i].data_offset + texture_offset)
-            data = file.read(tx2d_infos[i].data_size)
-            data_dds = header + data
-            tx2_datas[i].data = data_dds
-
-            # Create unswizzle image if the encoding is 'RGBA' and the extension is 'png' (it takes a little time)
-            if header_4.hex() == "41000000" and tx2_datas[i].extension == "png":
-                header_1_bmp = "42 4D"
-                header_2_bmp = (tx2d_infos[i].data_size + 54).to_bytes(4, 'little').hex()
-                header_3_bmp = "00 00 00 00 36 00 00 00 28 00 00 00"
-                header_4_1_bmp = tx2d_infos[i].width.to_bytes(4, 'little').hex()
-                header_4_2_bmp = tx2d_infos[i].height.to_bytes(4, 'little').hex()
-                header_4_bmp = header_4_1_bmp + header_4_2_bmp
-                header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
-                header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
-
-                # Write in disk the data swizzled
-                with open("tempSwizzledImage", mode="wb") as file_temp:
-                    file_temp.write(tx2_datas[i].data)
-
-                # Run the exe file of 'swizzle.exe' with the option '-u' to unswizzle the image
-                args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + "-u" + "\""
-                os.system('cmd /c ' + args)
-
-                # Get the data from the .exe
-                with open("tempUnSwizzledImage", mode="rb") as file_temp:
-                    tx2_datas[i].data_unswizzle = file_temp.read()
-                with open("Indexes.txt", mode="r") as file_temp:
-                    tx2_datas[i].indexes_unswizzle_algorithm = file_temp.read().split(";")[:-1]
-                    # [:-1] because swizzle.exe saves an '' element in the end
-
-                # Remove the temp files
-                os.remove("tempSwizzledImage")
-                os.remove("tempUnSwizzledImage")
-                os.remove("Indexes.txt")
-
-                tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp + tx2_datas[i].data_unswizzle)
+def get_dxt_value(encoding_name):
+    # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
+    if encoding_name == "DXT1":
+        return 8
+    elif encoding_name == "DXT5":
+        return 24
+    else:
+        return 0
 
 
 def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_image_text, size_image_text):
@@ -836,14 +783,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Load the data from the files
             open_spr_file(spr_file_path, 16)
-            open_vram_stpz_file(vram_file_path)
 
         # Generic spr file. Don't need to convert
         else:
             spr_file_path = spr_file_path_original
             vram_file_path = vram_file_path_original
             open_spr_file(spr_file_path, 12)
-            open_vram_file(vram_file_path)
+
+        open_vram_file(vram_file_path)
 
         # Add the names to the list view
         current_selected_texture = 0
