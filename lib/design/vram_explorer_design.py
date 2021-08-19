@@ -128,7 +128,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "vram explorer 1.6.3"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "vram explorer 1.7"))
         self.exportButton.setText(_translate("MainWindow", "E&xport..."))
         self.importButton.setText(_translate("MainWindow", "I&mport..."))
         self.exportAllButton.setText(_translate("MainWindow", "Export all"))

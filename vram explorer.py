@@ -59,6 +59,16 @@ textures_index_edited = []
 offset_quanty_difference = np.array(0)
 
 
+def change_endian(data):
+
+    data = data.hex()
+    new_data = ""
+    for i in range(0, len(data), 8):
+        new_data = new_data + data[i+6:i+8] + data[i+4:i+6] + data[i+2:i+4] + data[i:i+2]
+
+    return bytes.fromhex(new_data)
+
+
 def validation_dds_imported_texture(tx2d_info, width, height, mip_maps, dxt_encoding, number_bits):
 
     message = ""
@@ -537,7 +547,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                                                                       .name + ".dds"),
                                                       "DDS file (*.dds)")[0]
 
-            data = tx2_datas[current_selected_texture].data
+            # Check if it's a shadder (height 1 + MipMaps 1 + Encoding RGBA)
+            # If it's a shadder, we change the endian
+            if tx2d_infos[current_selected_texture].height == 1 \
+                and tx2d_infos[current_selected_texture].mip_maps == 1 \
+                    and tx2d_infos[current_selected_texture].dxt_encoding == 0:
+                data = tx2_datas[current_selected_texture].data[:128] \
+                    + change_endian(tx2_datas[current_selected_texture].data[128:])
+            else:
+                data = tx2_datas[current_selected_texture].data
 
         else:
             # Save bmp file
@@ -568,9 +586,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         for i in range(0, sprp_struct.data_count):
             # The image is dds (we have checked before if the image is unswizzle, we store the data in data_unswizzle)
             if tx2_datas[i].data_unswizzle == 255:
+
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".dds"), mode="wb")
-                file.write(tx2_datas[i].data)
+
+                # Check if it's a shadder (height 1 + MipMaps 1 + Encoding RGBA)
+                # If it's a shadder, we change the endian
+                if tx2d_infos[i].height == 1 and tx2d_infos[i].mip_maps == 1 and tx2d_infos[i].dxt_encoding == 0:
+                    file.write(tx2_datas[i].data[:128] + change_endian(tx2_datas[i].data[128:]))
+                else:
+                    file.write(tx2_datas[i].data)
+
                 file.close()
+
             else:
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".bmp"), mode="wb")
                 file.write(tx2_datas[i].data_unswizzle)
@@ -673,7 +700,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                                                (get_dxt_byte(dxt_encoding).decode('utf-8')))
 
                             # Change texture in the array
-                            tx2_datas[current_selected_texture].data = data
+                            # Check if it's a shadder the imported texture (height 1 + MipMaps 1 + Encoding RGBA)
+                            # If it's a shadder, we change the endian
+                            if height == 1 and mip_maps == 1 and dxt_encoding == 0:
+                                tx2_datas[current_selected_texture].data = data[:128] + change_endian(data[128:])
+                            else:
+                                tx2_datas[current_selected_texture].data = data
 
                             # Add the index texture that has been modified
                             # (if it was added before, we won't added twice)
@@ -761,9 +793,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Check if the user has selected an spr stpz file
         with open(spr_file_path_original, mode="rb") as spr_file:
             type_file = spr_file.read(4).hex()
-            stpz_file = False
             if type_file == STPZ:
                 stpz_file = True
+            else:
+                stpz_file = False
 
         # Open vram file
         vram_file_path_original = \
@@ -1086,7 +1119,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "vram explorer 1.6.3 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "vram explorer 1.7 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
