@@ -15,9 +15,11 @@ from pyglet import image
 from datetime import datetime
 
 # types of spr file
-# STPZ file
+# STPZ and STPK file
 STPZ = "5354505a"
+STPK = "5354504b"
 stpz_file = False
+single_stpk_header = True  # This flag will tell us if the spr and vram has two STPK header (RB2 to RB1 port)
 
 # resources path
 dbrb_compressor_path = os.path.join("lib", "resources", "dbrb_compressor.exe")
@@ -195,11 +197,23 @@ def read_dds_file(file_path):
 
 
 def open_spr_file(spr_path, start_pointer):
+
+    global single_stpk_header
+
     with open(spr_path, mode='rb') as file:
 
         # Move the pointer to the pos 16 (STPZ -> STPK) or 12 (SPR) and get the offset of the header
         file.seek(start_pointer)
         stpk_struct.data_offset = int.from_bytes(file.read(bytes2Read), "big")
+
+        # Check if we're dealing with a RB2 to RB1 port file
+        file.seek(stpk_struct.data_offset)
+        if file.read(bytes2Read).hex() != STPK:
+            single_stpk_header = True
+        else:
+            file.seek(stpk_struct.data_offset + start_pointer)
+            stpk_struct.data_offset = int.from_bytes(file.read(bytes2Read), "big") + 64
+            single_stpk_header = False
 
         # Create the sprp_struct instance
         file.seek(stpk_struct.data_offset + 20)
@@ -348,12 +362,22 @@ def open_vram_file(vram_path):
     with open(vram_path, mode="rb") as file:
 
         if stpz_file:
-            # Move to the position 16, where it tells the offset of the file where the texture starts
-            file.seek(16)
-            texture_offset = int.from_bytes(file.read(bytes2Read), "big")
+
+            # Normal STPK file
+            if single_stpk_header:
+                # Move to the position 16, where it tells the offset of the file where the texture starts
+                file.seek(16)
+                texture_offset = int.from_bytes(file.read(bytes2Read), "big")
+
+            # STPK file RB2 to RB1 port (has double STPK file type)
+            else:
+                # Move to the position 16 + 64, where it tells the offset of the file where the texture starts
+                file.seek(16 + 64)
+                texture_offset = int.from_bytes(file.read(bytes2Read), "big") + 64
 
             # The size of the file is in position 20
             vram_file_size_old = int.from_bytes(file.read(bytes2Read), "big")
+
         else:
             # Move to the position 0, where it tells the offset of the file where the texture starts
             texture_offset = 0
@@ -928,13 +952,30 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                     # If we're dealing with a vram stpz file
                     if stpz_file:
-                        # Move to the position 16, where it tells the offset of the file where the texture starts
-                        data = input_file.read(16)
-                        output_file.write(data)
 
-                        data = input_file.read(bytes2Read)
-                        output_file.write(data)
-                        texture_offset = int.from_bytes(data, "big")
+                        # If we're dealing with a normal STPK
+                        if single_stpk_header:
+                            # Move to the position 16, where it tells the offset of the file where the texture starts
+                            data = input_file.read(16)
+
+                            output_file.write(data)
+
+                            data = input_file.read(bytes2Read)
+                            output_file.write(data)
+                            texture_offset = int.from_bytes(data, "big")
+
+                        # We're dealing with RB2 to RB1 port
+                        else:
+                            # Move to the position 16 + 64, where it tells the offset of the
+                            # file where the texture starts
+                            data = input_file.read(16 + 64)
+
+                            output_file.write(data)
+
+                            data = input_file.read(bytes2Read)
+                            output_file.write(data)
+                            texture_offset = int.from_bytes(data, "big") + 64
+
                     else:
                         texture_offset = 0
 
