@@ -547,11 +547,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                                                                       .name + ".dds"),
                                                       "DDS file (*.dds)")[0]
 
-            # Check if it's a shadder (height 1 + MipMaps 1 + Encoding RGBA)
+            # Check if it's a shadder (height 1)
             # If it's a shadder, we change the endian
-            if tx2d_infos[current_selected_texture].height == 1 \
-                and tx2d_infos[current_selected_texture].mip_maps == 1 \
-                    and tx2d_infos[current_selected_texture].dxt_encoding == 0:
+            if tx2d_infos[current_selected_texture].height == 1:
                 data = tx2_datas[current_selected_texture].data[:128] \
                     + change_endian(tx2_datas[current_selected_texture].data[128:])
             else:
@@ -589,9 +587,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".dds"), mode="wb")
 
-                # Check if it's a shadder (height 1 + MipMaps 1 + Encoding RGBA)
+                # Check if it's a shadder (height 1)
                 # If it's a shadder, we change the endian
-                if tx2d_infos[i].height == 1 and tx2d_infos[i].mip_maps == 1 and tx2d_infos[i].dxt_encoding == 0:
+                if tx2d_infos[i].height == 1:
                     file.write(tx2_datas[i].data[:128] + change_endian(tx2_datas[i].data[128:]))
                 else:
                     file.write(tx2_datas[i].data)
@@ -702,7 +700,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                             # Change texture in the array
                             # Check if it's a shadder the imported texture (height 1 + MipMaps 1 + Encoding RGBA)
                             # If it's a shadder, we change the endian
-                            if height == 1 and mip_maps == 1 and dxt_encoding == 0:
+                            if height == 1:
                                 tx2_datas[current_selected_texture].data = data[:128] + change_endian(data[128:])
                             else:
                                 tx2_datas[current_selected_texture].data = data
