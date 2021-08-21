@@ -416,7 +416,7 @@ def open_vram_file(vram_path):
             tx2_datas[i].data = data_dds
 
             # Create unswizzle image if the encoding is 'RGBA' and the extension is 'png'
-            if header_4.hex() == "41000000" and tx2_datas[i].extension == "png":
+            if tx2d_infos[i].dxt_encoding == 0 and tx2_datas[i].extension == "png":
                 header_1_bmp = "42 4D"
                 header_2_bmp = (tx2d_infos[i].data_size + 54).to_bytes(4, 'little').hex()
                 header_3_bmp = "00 00 00 00 36 00 00 00 28 00 00 00"
