@@ -69,7 +69,7 @@ def change_endian(data):
     return bytes.fromhex(new_data)
 
 
-def validation_dds_imported_texture(tx2d_info, width, height, mip_maps, dxt_encoding, number_bits):
+def validation_dds_imported_texture(tx2d_info, width, height, mip_maps, dxt_encoding):
 
     message = ""
 
@@ -88,11 +88,6 @@ def validation_dds_imported_texture(tx2d_info, width, height, mip_maps, dxt_enco
     if tx2d_info.dxt_encoding != dxt_encoding:
         message = message + "<li> The encoding should be " + get_dxt_byte(tx2d_info.dxt_encoding).decode('utf-8') \
             + ". The imported texture is " + get_dxt_byte(dxt_encoding).decode('utf-8') + ".</li>"
-
-    # Check number of bits (only if the texture is RGBA -> shadder)
-    if dxt_encoding == 0 and 32 != number_bits:
-        message = message + "<li> The number of bits should be " + str(32) \
-            + ". The imported texture has " + str(number_bits) + " bits.</li>"
 
     return message
 
@@ -166,6 +161,9 @@ def show_bmp_image(image_texture, texture_data, width, height):
             if width > image_texture.width():
                 mpixmap = mpixmap.scaled(image_texture.width(), image_texture.width())
         else:
+            # Since a shader has height of 1, in order to show it more clearly, we ignore the scaling
+            if height == 1:
+                mpixmap = mpixmap.scaled(image_texture.width(), width)
             if width > height:
                 if width > image_texture.width():
                     new_height = int((height / width) * image_texture.width())
@@ -371,6 +369,7 @@ def open_vram_file(vram_path):
 
     with open(vram_path, mode="rb") as file:
 
+        # Check if we're dealing with a stpz file (compressed)
         if stpz_file:
 
             # Normal STPK file
@@ -400,23 +399,28 @@ def open_vram_file(vram_path):
         header_3_1 = "00000000"
         header_3_3 = "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000"
         for i in range(0, len(tx2d_infos)):
-            header_2 = tx2d_infos[i].height.to_bytes(4, 'little') + tx2d_infos[i].width.to_bytes(4, 'little') + (
-                tx2d_infos[i].data_size).to_bytes(4, 'little')
 
-            header_3_2 = tx2d_infos[i].mip_maps.to_bytes(4, 'little')
+            # Creating DXT5 and DXT1 heading
+            if tx2d_infos[i].dxt_encoding != 0:
 
-            header_3 = bytes.fromhex(header_3_1) + header_3_2 + bytes.fromhex(header_3_3)
+                header_2 = tx2d_infos[i].height.to_bytes(4, 'little') + tx2d_infos[i].width.to_bytes(4, 'little') + (
+                    tx2d_infos[i].data_size).to_bytes(4, 'little')
 
-            header_4, header_5, header_6 = create_header(tx2d_infos[i].dxt_encoding)
-            header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
+                header_3_2 = tx2d_infos[i].mip_maps.to_bytes(4, 'little')
 
-            file.seek(tx2d_infos[i].data_offset + texture_offset)
-            data = file.read(tx2d_infos[i].data_size)
-            data_dds = header + data
-            tx2_datas[i].data = data_dds
+                header_3 = bytes.fromhex(header_3_1) + header_3_2 + bytes.fromhex(header_3_3)
 
-            # Create unswizzle image if the encoding is 'RGBA' and the extension is 'png'
-            if tx2d_infos[i].dxt_encoding == 0 and tx2_datas[i].extension == "png":
+                header_4, header_5, header_6 = create_header(tx2d_infos[i].dxt_encoding)
+                header = header_1 + header_2 + header_3 + header_4 + header_5 + header_6
+
+                # Store the data in memory
+                file.seek(tx2d_infos[i].data_offset + texture_offset)
+                data = file.read(tx2d_infos[i].data_size)
+                tx2_datas[i].data = header + data
+
+            # Creating RGBA heading
+            else:
+
                 header_1_bmp = "42 4D"
                 header_2_bmp = (tx2d_infos[i].data_size + 54).to_bytes(4, 'little').hex()
                 header_3_bmp = "00 00 00 00 36 00 00 00 28 00 00 00"
@@ -424,29 +428,40 @@ def open_vram_file(vram_path):
                 header_4_2_bmp = tx2d_infos[i].height.to_bytes(4, 'little').hex()
                 header_4_bmp = header_4_1_bmp + header_4_2_bmp
                 header_5_bmp = "01 00 20 00 00 00 00 00 00 00 00 00 12 0B 00 00 12 0B 00 00 00 00 00 00 00 00 00 00"
-                header_bmp = header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp
+                header = bytes.fromhex(header_1_bmp + header_2_bmp + header_3_bmp + header_4_bmp + header_5_bmp)
 
-                # Write in disk the data swizzled
-                with open("tempSwizzledImage", mode="wb") as file_temp:
-                    file_temp.write(tx2_datas[i].data)
+                # Store the data in memory
+                file.seek(tx2d_infos[i].data_offset + texture_offset)
+                data = file.read(tx2d_infos[i].data_size)
+                # We're dealing with a shader
+                if tx2d_infos[i].height == 1:
+                    data = change_endian(data)
+                tx2_datas[i].data = header + data
 
-                # Run the exe file of 'swizzle.exe' with the option '-u' to unswizzle the image
-                args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + "-u" + "\""
-                os.system('cmd /c ' + args)
+                # Check if the extension is png, to unswizzle the image
+                if tx2_datas[i].extension == "png":
 
-                # Get the data from the .exe
-                with open("tempUnSwizzledImage", mode="rb") as file_temp:
-                    tx2_datas[i].data_unswizzle = file_temp.read()
-                with open("Indexes.txt", mode="r") as file_temp:
-                    tx2_datas[i].indexes_unswizzle_algorithm = file_temp.read().split(";")[:-1]
-                    # [:-1] because swizzle.exe saves an '' element in the end
+                    # Write in disk the data swizzled
+                    with open("tempSwizzledImage", mode="wb") as file_temp:
+                        file_temp.write(tx2_datas[i].data)
 
-                # Remove the temp files
-                os.remove("tempSwizzledImage")
-                os.remove("tempUnSwizzledImage")
-                os.remove("Indexes.txt")
+                    # Run the exe file of 'swizzle.exe' with the option '-u' to unswizzle the image
+                    args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + "-u" + "\""
+                    os.system('cmd /c ' + args)
 
-                tx2_datas[i].data_unswizzle = bytes.fromhex(header_bmp) + tx2_datas[i].data_unswizzle
+                    # Get the data from the .exe
+                    with open("tempUnSwizzledImage", mode="rb") as file_temp:
+                        tx2_datas[i].data_unswizzle = file_temp.read()
+                    with open("Indexes.txt", mode="r") as file_temp:
+                        tx2_datas[i].indexes_unswizzle_algorithm = file_temp.read().split(";")[:-1]
+                        # [:-1] because swizzle.exe saves an '' element in the end
+
+                    # Remove the temp files
+                    os.remove("tempSwizzledImage")
+                    os.remove("tempUnSwizzledImage")
+                    os.remove("Indexes.txt")
+
+                    tx2_datas[i].data_unswizzle = header + tx2_datas[i].data_unswizzle
 
 
 def create_header(value):
@@ -458,10 +473,6 @@ def create_header(value):
         return bytes.fromhex("04000000"), "DXT5".encode(), bytes.fromhex(
             "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
             "00 00 00 00 00 00 ".strip())
-    else:
-        return bytes.fromhex("41000000"), bytes.fromhex("00000000"), bytes.fromhex(
-            "20 00 00 00 00 00 FF 00 00 FF 00 00 FF 00 00 00 00 00 00 FF 02 10 00 00 00 00 00 00 00 00 00 00 00 00 "
-            "00 00 00 00 00 00".strip())
 
 
 def get_dxt_byte(value):
@@ -490,14 +501,19 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
     if current_selected_texture != q_model_index.row():
         current_selected_texture = q_model_index.row()
 
-        # If there is no data_sunwizzle loaded (255), we show the texture as DDS
-        if tx2_datas[current_selected_texture].data_unswizzle == 255:
+        # If the encoding is DXT5 or DXT1, we show the dds image
+        if tx2d_infos[current_selected_texture].dxt_encoding != 0:
             # Create the dds in disk and open it
             show_dds_image(image_texture, tx2_datas[current_selected_texture].data,
                            tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
         else:
-            show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_unswizzle,
-                           tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
+            if tx2_datas[current_selected_texture].extension == "tga" \
+                    or tx2_datas[current_selected_texture].extension == "bmp":
+                show_bmp_image(image_texture, tx2_datas[current_selected_texture].data,
+                               tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
+            else:
+                show_bmp_image(image_texture, tx2_datas[current_selected_texture].data_unswizzle,
+                               tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
 
         encoding_image_text.setText(
             "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
@@ -538,8 +554,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def action_export_logic(self):
 
-        # If there is no data_unswizzle loaded (255), we show the texture as DDS
-        if tx2_datas[current_selected_texture].data_unswizzle == 255:
+        # If the encoding is DXT5 or DXT1, we show the dds image
+        if tx2d_infos[current_selected_texture].dxt_encoding != 0:
             # Save dds file
             export_path = QFileDialog.getSaveFileName(self, "Save file", os.path.join(os.path.abspath(os.getcwd()),
                                                                                       tx2_datas[
@@ -547,13 +563,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                                                                       .name + ".dds"),
                                                       "DDS file (*.dds)")[0]
 
-            # Check if it's a shadder (height 1)
-            # If it's a shadder, we change the endian
-            if tx2d_infos[current_selected_texture].height == 1:
-                data = tx2_datas[current_selected_texture].data[:128] \
-                    + change_endian(tx2_datas[current_selected_texture].data[128:])
-            else:
-                data = tx2_datas[current_selected_texture].data
+            data = tx2_datas[current_selected_texture].data
 
         else:
             # Save bmp file
@@ -563,7 +573,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                                                                       .name + ".bmp"),
                                                       "BMP file (*.bmp)")[0]
 
-            data = tx2_datas[current_selected_texture].data_unswizzle
+            if tx2_datas[current_selected_texture].extension == "tga" \
+                    or tx2_datas[current_selected_texture].extension == "bmp":
+                data = tx2_datas[current_selected_texture].data
+            else:
+                data = tx2_datas[current_selected_texture].data_unswizzle
 
         if export_path:
             file = open(export_path, mode="wb")
@@ -582,23 +596,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             os.mkdir(folder_export_path)
 
         for i in range(0, sprp_struct.data_count):
-            # The image is dds (we have checked before if the image is unswizzle, we store the data in data_unswizzle)
-            if tx2_datas[i].data_unswizzle == 255:
+            # The image is dds
+            if tx2d_infos[i].dxt_encoding != 0:
 
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".dds"), mode="wb")
 
-                # Check if it's a shadder (height 1)
-                # If it's a shadder, we change the endian
-                if tx2d_infos[i].height == 1:
-                    file.write(tx2_datas[i].data[:128] + change_endian(tx2_datas[i].data[128:]))
-                else:
-                    file.write(tx2_datas[i].data)
-
+                file.write(tx2_datas[i].data)
                 file.close()
 
             else:
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".bmp"), mode="wb")
-                file.write(tx2_datas[i].data_unswizzle)
+                if tx2_datas[i].extension == "tga" or tx2_datas[i].extension == "bmp":
+                    file.write(tx2_datas[i].data)
+                else:
+                    file.write(tx2_datas[i].data_unswizzle)
                 file.close()
 
         msg = QMessageBox()
@@ -610,12 +621,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Open spr file
         # For DDS
-        if tx2_datas[current_selected_texture].data_unswizzle == 255:
+        if tx2d_infos[current_selected_texture].dxt_encoding != 0:
             import_path = QFileDialog.getOpenFileName(self, "Open file",
                                                       os.path.join(os.path.abspath(spr_file_path),
                                                                    tx2_datas[current_selected_texture].name + ".dds"),
                                                       "DDS file (*.dds)")[0]
-        # For BMP (png unswizzled)
+        # For BMP (rgba image)
         else:
             import_path = QFileDialog.getOpenFileName(self, "Open file",
                                                       os.path.join(os.path.abspath(spr_file_path),
@@ -629,7 +640,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # It's a DDS modded image
                 if header != "424d":
                     # It's a DDS file the selected texture
-                    if tx2_datas[current_selected_texture].data_unswizzle == 255:
+                    if tx2d_infos[current_selected_texture].dxt_encoding != 0:
 
                         # Get the height and width of the modified image
                         file.seek(12)
@@ -641,15 +652,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         # Get the dxtencoding
                         file.seek(84)
                         dxt_encoding = get_dxt_value(file.read(bytes2Read).decode())
-                        # Get the number of bits
-                        number_bits = int.from_bytes(file.read(bytes2Read), 'little')
 
                         message = validation_dds_imported_texture(tx2d_infos[current_selected_texture],
-                                                                  width, height, mip_maps, dxt_encoding, number_bits)
+                                                                  width, height, mip_maps, dxt_encoding)
 
                         # If the message is empty, there is no differences between original and modified one
                         msg = QMessageBox()
-                        message_import_result = msg.Yes
                         if message:
 
                             # Concatenate the base message and the differences the tool has found
@@ -660,16 +668,119 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                             msg.setWindowTitle("Warning")
                             message_import_result = msg.question(self, '', message, msg.Yes | msg.No)
 
-                        # If the users click on 'Yes', the modified texture will be imported
-                        if message_import_result == msg.Yes:
+                            # If the users click on 'No', the modified texture won't be imported
+                            if message_import_result == msg.No:
+                                return
 
-                            # Get all the data
-                            file.seek(0)
-                            data = file.read()
+                        # Get all the data
+                        file.seek(0)
+                        data = file.read()
 
+                        # Importing the texture
+                        # Get the difference in size between original and modified in order to change the offsets
+                        len_data = len(data[128:])
+                        difference = len_data - tx2d_infos[current_selected_texture].data_size
+                        if difference != 0:
+                            tx2d_infos[current_selected_texture].data_size = len_data
+                            offset_quanty_difference[current_selected_texture] = difference
+
+                        # Change width
+                        if tx2d_infos[current_selected_texture].width != width:
+                            tx2d_infos[current_selected_texture].width = width
+                            self.sizeImageText.setText(
+                                "Resolution: %dx%d" % (width, tx2d_infos[current_selected_texture].height))
+                        # Change height
+                        if tx2d_infos[current_selected_texture].height != height:
+                            tx2d_infos[current_selected_texture].height = height
+                            self.sizeImageText.setText(
+                                "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, height))
+
+                        # Change mipMaps
+                        if tx2d_infos[current_selected_texture].mip_maps != mip_maps:
+                            tx2d_infos[current_selected_texture].mip_maps = mip_maps
+                            self.mipMapsImageText.setText("Mipmaps: %s" % mip_maps)
+
+                        # Change dxt encoding
+                        if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
+                            tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
+                            self.encodingImageText.setText("Encoding: %s" %
+                                                           (get_dxt_byte(dxt_encoding).decode('utf-8')))
+
+                        # Change texture in the array
+                        tx2_datas[current_selected_texture].data = data
+
+                        # Add the index texture that has been modified
+                        # (if it was added before, we won't added twice)
+                        if current_selected_texture not in textures_index_edited:
+                            textures_index_edited.append(current_selected_texture)
+
+                        try:
+                            # Show texture in the program
+                            show_dds_image(self.imageTexture, None, width, height, import_path)
+
+                        except OSError:
+                            self.imageTexture.clear()
+
+                    else:
+                        msg = QMessageBox()
+                        msg.setWindowTitle("Error")
+                        msg.setText("The image you're importing is DDS and should be BMP")
+                        msg.exec()
+
+                # it's a BMP modded image
+                else:
+                    # It's a BMP file the selected texture
+                    if tx2d_infos[current_selected_texture].dxt_encoding == 0:
+
+                        # Get the height and width of the modified image
+                        file.seek(18)
+                        width = int.from_bytes(file.read(bytes2Read), 'little')
+                        height = int.from_bytes(file.read(bytes2Read), 'little')
+
+                        # Get the number of bits
+                        file.seek(28)
+                        number_bits = int.from_bytes(file.read(2), 'little')
+
+                        # Validate the BMP imported texture
+                        message = validation_bmp_imported_texture(tx2d_infos[current_selected_texture],
+                                                                  width, height, number_bits)
+
+                        # If there is a message, it has detected differences
+                        if message:
+                            # If the imported texture is not png, we ask the user first to add it or not
+                            if tx2_datas[current_selected_texture].extension == "tga" \
+                                    or tx2_datas[current_selected_texture].extension == "bmp":
+
+                                msg = QMessageBox()
+
+                                # Concatenate the base message and the differences the tool has found
+                                message = message_base_import_DDS_start + "<ul>" + message + "</ul>" \
+                                    + message_base_import_DDS_end
+
+                                # Ask to the user if he/she is sure that wants to replace the texture
+                                msg.setWindowTitle("Warning")
+                                message_import_result = msg.question(self, '', message, msg.Yes | msg.No)
+
+                                # If the users click on 'NO', the modified texture won't be imported
+                                if message_import_result == msg.No:
+                                    return
+                            else:
+                                msg = QMessageBox()
+                                msg.setWindowTitle("Error")
+                                msg.setText(message_base_import_BMP_start + "<ul>" + message + "</ul>")
+                                msg.exec()
+                                return
+
+                        # Get all the data
+                        file.seek(0)
+                        data = file.read()
+
+                        # It's not png file
+                        if tx2_datas[current_selected_texture].extension == "tga" \
+                                or tx2_datas[current_selected_texture].extension == "bmp":
                             # Importing the texture
                             # Get the difference in size between original and modified in order to change the offsets
-                            len_data = len(data[128:])
+                            len_data = len(data[54:])
                             difference = len_data - tx2d_infos[current_selected_texture].data_size
                             if difference != 0:
                                 tx2d_infos[current_selected_texture].data_size = len_data
@@ -686,87 +797,25 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                 self.sizeImageText.setText(
                                     "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, height))
 
-                            # Change mipMaps
-                            if tx2d_infos[current_selected_texture].mip_maps != mip_maps:
-                                tx2d_infos[current_selected_texture].mip_maps = mip_maps
-                                self.mipMapsImageText.setText("Mipmaps: %s" % mip_maps)
-
-                            # Change dxt encoding
-                            if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
-                                tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
-                                self.encodingImageText.setText("Encoding: %s" %
-                                                               (get_dxt_byte(dxt_encoding).decode('utf-8')))
-
                             # Change texture in the array
-                            # Check if it's a shadder the imported texture (height 1 + MipMaps 1 + Encoding RGBA)
-                            # If it's a shadder, we change the endian
-                            if height == 1:
-                                tx2_datas[current_selected_texture].data = data[:128] + change_endian(data[128:])
-                            else:
-                                tx2_datas[current_selected_texture].data = data
+                            tx2_datas[current_selected_texture].data = data
 
-                            # Add the index texture that has been modified
-                            # (if it was added before, we won't added twice)
-                            if current_selected_texture not in textures_index_edited:
-                                textures_index_edited.append(current_selected_texture)
-
-                            try:
-                                # Show texture in the program
-                                show_dds_image(self.imageTexture, None, width, height, import_path)
-
-                            except OSError:
-                                self.imageTexture.clear()
-
-                    else:
-                        msg = QMessageBox()
-                        msg.setWindowTitle("Error")
-                        msg.setText("The image you're importing is DDS and should be BMP")
-                        msg.exec()
-
-                # it's a BMP modded image
-                else:
-                    # It's a BMP file the selected texture
-                    if get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding) == "RGBA".encode() \
-                            and tx2_datas[current_selected_texture].extension == "png":
-
-                        # Get the height and width of the modified image
-                        file.seek(18)
-                        width = int.from_bytes(file.read(bytes2Read), 'little')
-                        height = int.from_bytes(file.read(bytes2Read), 'little')
-
-                        # Get the number of bits
-                        file.seek(28)
-                        number_bits = int.from_bytes(file.read(2), 'little')
-
-                        # Validate the BMP imported texture
-                        message = validation_bmp_imported_texture(tx2d_infos[current_selected_texture],
-                                                                  width, height, number_bits)
-
-                        if message:
-                            msg = QMessageBox()
-                            msg.setWindowTitle("Error")
-                            msg.setText(message_base_import_BMP_start + "<ul>" + message + "</ul>")
-                            msg.exec()
                         else:
-                            # Get all the data
-                            file.seek(0)
-                            data = file.read()
-
                             # Importing the texture
                             # Change texture in the array
                             tx2_datas[current_selected_texture].data_unswizzle = data
 
-                            # Add the index texture that has been modified (if it was added before,
-                            # we won't added twice)
-                            if current_selected_texture not in textures_index_edited:
-                                textures_index_edited.append(current_selected_texture)
+                        # Add the index texture that has been modified (if it was added before,
+                        # we won't added twice)
+                        if current_selected_texture not in textures_index_edited:
+                            textures_index_edited.append(current_selected_texture)
 
-                            try:
-                                # Show texture in the program
-                                show_bmp_image(self.imageTexture, data, width, height)
+                        try:
+                            # Show texture in the program
+                            show_bmp_image(self.imageTexture, data, width, height)
 
-                            except OSError:
-                                self.imageTexture.clear()
+                        except OSError:
+                            self.imageTexture.clear()
                     else:
                         msg = QMessageBox()
                         msg.setWindowTitle("Error")
@@ -864,12 +913,16 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                             self.mipMapsImageText,
                                             self.sizeImageText))
 
-        # If there is no data_unswizzle loaded (255), we show the texture as DDS
-        if tx2_datas[0].data_unswizzle == 255:
+        # If the texture encoded is DXT1 or DXT5, we call the show dds function
+        if tx2d_infos[0].dxt_encoding != 0:
             # Create the dds in disk and open it
             show_dds_image(self.imageTexture, tx2_datas[0].data, tx2d_infos[0].width, tx2d_infos[0].height)
         else:
-            show_bmp_image(self.imageTexture, tx2_datas[0].data_unswizzle, tx2d_infos[0].width, tx2d_infos[0].height)
+            if tx2_datas[0].extension == "tga" or tx2_datas[0].extension == "bmp":
+                show_bmp_image(self.imageTexture, tx2_datas[0].data, tx2d_infos[0].width, tx2d_infos[0].height)
+            else:
+                show_bmp_image(self.imageTexture, tx2_datas[0].data_unswizzle, tx2d_infos[0].width,
+                               tx2d_infos[0].height)
 
         # Show the buttons
         self.exportButton.setVisible(True)
@@ -1019,39 +1072,46 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         input_file.seek(tx2d_info.data_size_old, os.SEEK_CUR)
 
                         # It's a DDS image
-                        if tx2d_data.data_unswizzle == 255:
+                        if tx2d_info.dxt_encoding != 0:
                             output_file.write(tx2_datas[texture_index].data[128:])
                         else:
 
-                            # Write in disk the data swizzled
-                            with open("tempSwizzledImage", mode="wb") as file:
-                                file.write(tx2_datas[texture_index].data)
+                            if tx2d_data.extension == "tga" or tx2d_data.extension == "bmp":
+                                # We're dealing with a shader. We have to change the endian
+                                if tx2d_info.height == 1:
+                                    output_file.write(change_endian(tx2_datas[texture_index].data[54:]))
+                                else:
+                                    output_file.write(tx2_datas[texture_index].data[54:])
+                            else:
+                                # Write in disk the data swizzled
+                                with open("tempSwizzledImage", mode="wb") as file:
+                                    file.write(tx2_datas[texture_index].data)
 
-                            # Write in disk the data unswizzled
-                            with open("tempUnSwizzledImage", mode="wb") as file:
-                                file.write(tx2_datas[texture_index].data_unswizzle[54:])
+                                # Write in disk the data unswizzled
+                                with open("tempUnSwizzledImage", mode="wb") as file:
+                                    file.write(tx2_datas[texture_index].data_unswizzle[54:])
 
-                            # Write in disk the indexes
-                            with open("Indexes.txt", mode="w") as file:
-                                for index in tx2_datas[texture_index].indexes_unswizzle_algorithm:
-                                    file.write(index + ";")    
+                                # Write in disk the indexes
+                                with open("Indexes.txt", mode="w") as file:
+                                    for index in tx2_datas[texture_index].indexes_unswizzle_algorithm:
+                                        file.write(index + ";")    
 
-                            # Run the exe file of 'swizzle.exe' with the option '-s' to swizzle the image
-                            args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + \
-                                "tempUnSwizzledImage" + "\" \"" + "Indexes.txt" + "\" \"" + "-s" + "\""
-                            os.system('cmd /c ' + args)
+                                # Run the exe file of 'swizzle.exe' with the option '-s' to swizzle the image
+                                args = os.path.join(swizzle_path) + " \"" + "tempSwizzledImage" + "\" \"" + \
+                                    "tempUnSwizzledImage" + "\" \"" + "Indexes.txt" + "\" \"" + "-s" + "\""
+                                os.system('cmd /c ' + args)
 
-                            # Get the data from the .exe
-                            with open("tempSwizzledImageModified", mode="rb") as file:
-                                tx2_datas[texture_index].data = file.read()
+                                # Get the data from the .exe
+                                with open("tempSwizzledImageModified", mode="rb") as file:
+                                    tx2_datas[texture_index].data = file.read()
 
-                            # Remove the temp files
-                            os.remove("tempSwizzledImage")
-                            os.remove("tempUnSwizzledImage")
-                            os.remove("Indexes.txt")
-                            os.remove("tempSwizzledImageModified")
+                                # Remove the temp files
+                                os.remove("tempSwizzledImage")
+                                os.remove("tempUnSwizzledImage")
+                                os.remove("Indexes.txt")
+                                os.remove("tempSwizzledImageModified")
 
-                            output_file.write(tx2_datas[texture_index].data)
+                                output_file.write(tx2_datas[texture_index].data)
 
                     data = input_file.read()
                     output_file.write(data)

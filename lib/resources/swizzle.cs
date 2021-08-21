@@ -233,22 +233,22 @@ class Swizzle
                 // Read the image in bytes
                 byte[] fullData = File.ReadAllBytes(args[0]);
 
-                // Height
+                // Size image
                 byte[] tempData = new byte[4];
-                Buffer.BlockCopy(fullData, 12, tempData, 0, 4);
-                Int32 height = BitConverter.ToInt32(tempData, 0);
+                Buffer.BlockCopy(fullData, 2, tempData, 0, 4);
+                Int32 size = BitConverter.ToInt32(tempData, 0) - 54;
 
                 // Width
-                Buffer.BlockCopy(fullData, 16, tempData, 0, 4);
+                Buffer.BlockCopy(fullData, 18, tempData, 0, 4);
                 Int32 width = BitConverter.ToInt32(tempData, 0);
 
-                // Size image
-                Buffer.BlockCopy(fullData, 20, tempData, 0, 4);
-                Int32 size = BitConverter.ToInt32(tempData, 0);
+                // Height
+                Buffer.BlockCopy(fullData, 22, tempData, 0, 4);
+                Int32 height = BitConverter.ToInt32(tempData, 0);
 
                 // The data itself
                 byte[] filedata = new byte[size];
-                Buffer.BlockCopy(fullData, 128, filedata, 0, size);
+                Buffer.BlockCopy(fullData, 54, filedata, 0, size);
 
                 // unswizzle algorithm
                 Console.WriteLine("Unswizzling image...");
@@ -285,18 +285,18 @@ class Swizzle
                 string[] indexes = line.Split(';');
                 Array.Resize(ref indexes, indexes.Length - 1);
 
-                // Height
+                // Size image
                 byte[] tempData = new byte[4];
-                Buffer.BlockCopy(fullDataSwizzled, 12, tempData, 0, 4);
-                Int32 height = BitConverter.ToInt32(tempData, 0);
+                Buffer.BlockCopy(fullDataSwizzled, 2, tempData, 0, 4);
+                Int32 size = BitConverter.ToInt32(tempData, 0) - 54;
 
                 // Width
-                Buffer.BlockCopy(fullDataSwizzled, 16, tempData, 0, 4);
+                Buffer.BlockCopy(fullDataSwizzled, 18, tempData, 0, 4);
                 Int32 width = BitConverter.ToInt32(tempData, 0);
 
-                // Size image
-                Buffer.BlockCopy(fullDataSwizzled, 20, tempData, 0, 4);
-                Int32 size = BitConverter.ToInt32(tempData, 0);
+                // Height
+                Buffer.BlockCopy(fullDataSwizzled, 22, tempData, 0, 4);
+                Int32 height = BitConverter.ToInt32(tempData, 0);
 
                 // unfix colors
                 Console.WriteLine("Unfixing colors...");
