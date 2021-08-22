@@ -17,7 +17,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>vram explorer 1.7</string>
+   <string>vram explorer 1.8</string>
   </property>
   <property name="tabShape">
    <enum>QTabWidget::Rounded</enum>

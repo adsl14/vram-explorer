@@ -507,8 +507,7 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
             show_dds_image(image_texture, tx2_datas[current_selected_texture].data,
                            tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
         else:
-            if tx2_datas[current_selected_texture].extension == "tga" \
-                    or tx2_datas[current_selected_texture].extension == "bmp":
+            if tx2_datas[current_selected_texture].extension != "png":
                 show_bmp_image(image_texture, tx2_datas[current_selected_texture].data,
                                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
             else:
@@ -573,8 +572,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                                                                                       .name + ".bmp"),
                                                       "BMP file (*.bmp)")[0]
 
-            if tx2_datas[current_selected_texture].extension == "tga" \
-                    or tx2_datas[current_selected_texture].extension == "bmp":
+            if tx2_datas[current_selected_texture].extension != "png":
                 data = tx2_datas[current_selected_texture].data
             else:
                 data = tx2_datas[current_selected_texture].data_unswizzle
@@ -606,7 +604,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             else:
                 file = open(os.path.join(folder_export_path, tx2_datas[i].name + ".bmp"), mode="wb")
-                if tx2_datas[i].extension == "tga" or tx2_datas[i].extension == "bmp":
+                if tx2_datas[i].extension != "png":
                     file.write(tx2_datas[i].data)
                 else:
                     file.write(tx2_datas[i].data_unswizzle)
@@ -748,8 +746,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         # If there is a message, it has detected differences
                         if message:
                             # If the imported texture is not png, we ask the user first to add it or not
-                            if tx2_datas[current_selected_texture].extension == "tga" \
-                                    or tx2_datas[current_selected_texture].extension == "bmp":
+                            if tx2_datas[current_selected_texture].extension != "png":
 
                                 msg = QMessageBox()
 
@@ -776,8 +773,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         data = file.read()
 
                         # It's not png file
-                        if tx2_datas[current_selected_texture].extension == "tga" \
-                                or tx2_datas[current_selected_texture].extension == "bmp":
+                        if tx2_datas[current_selected_texture].extension != "png":
                             # Importing the texture
                             # Get the difference in size between original and modified in order to change the offsets
                             len_data = len(data[54:])
@@ -918,7 +914,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             # Create the dds in disk and open it
             show_dds_image(self.imageTexture, tx2_datas[0].data, tx2d_infos[0].width, tx2d_infos[0].height)
         else:
-            if tx2_datas[0].extension == "tga" or tx2_datas[0].extension == "bmp":
+            if tx2_datas[0].extension != "png":
                 show_bmp_image(self.imageTexture, tx2_datas[0].data, tx2d_infos[0].width, tx2d_infos[0].height)
             else:
                 show_bmp_image(self.imageTexture, tx2_datas[0].data_unswizzle, tx2d_infos[0].width,
@@ -1075,7 +1071,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                             output_file.write(tx2_datas[texture_index].data[128:])
                         else:
 
-                            if tx2d_data.extension == "tga" or tx2d_data.extension == "bmp":
+                            if tx2d_data.extension != "png":
                                 # We're dealing with a shader. We have to change the endian
                                 if tx2d_info.height == 1:
                                     output_file.write(change_endian(tx2_datas[texture_index].data[54:]))
@@ -1182,7 +1178,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         msg.setTextFormat(1)
         msg.setWindowTitle("Author")
         msg.setText(
-            "vram explorer 1.7 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
+            "vram explorer 1.8 by <a href=https://www.youtube.com/channel/UCkZajFypIgQL6mI6OZLEGXw>adsl13</a>")
         msg.exec()
 
     @staticmethod
