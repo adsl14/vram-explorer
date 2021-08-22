@@ -942,8 +942,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.mipMapsImageText.setVisible(True)
         self.sizeImageText.setVisible(True)
 
-    @staticmethod
-    def action_save_logic():
+    def action_save_logic(self):
 
         global spr_file_path_original, vram_file_path_original
 
@@ -1163,8 +1162,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             msg = QMessageBox()
             msg.setWindowTitle("Message")
-            msg.setText("The files were saved and compressed in %s" % path_output_files)
-            msg.exec()
+            message = "The files were saved and compressed in: <b>" + path_output_files \
+                      + "</b><br><br> Do you wish to open the folder?"
+            message_open_saved_files = msg.question(self, '', message, msg.Yes | msg.No)
+
+            # If the users click on 'Yes', it will open the path where the files were saved
+            if message_open_saved_files == msg.Yes:
+                # Show the path folder to the user
+                os.system('explorer.exe ' + path_output_files)
 
     def closeEvent(self, event):
         if os.path.exists(temp_folder):
