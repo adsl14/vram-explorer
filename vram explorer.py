@@ -86,8 +86,8 @@ def validation_dds_imported_texture(tx2d_info, width, height, mip_maps, dxt_enco
 
     # Check encoding
     if tx2d_info.dxt_encoding != dxt_encoding:
-        message = message + "<li> The encoding should be " + get_dxt_byte(tx2d_info.dxt_encoding).decode('utf-8') \
-            + ". The imported texture is " + get_dxt_byte(dxt_encoding).decode('utf-8') + ".</li>"
+        message = message + "<li> The encoding should be " + get_encoding_name(tx2d_info.dxt_encoding) \
+                  + ". The imported texture is " + get_encoding_name(dxt_encoding) + ".</li>"
 
     return message
 
@@ -475,14 +475,16 @@ def create_header(value):
             "00 00 00 00 00 00 ".strip())
 
 
-def get_dxt_byte(value):
+def get_encoding_name(value):
     # 0x00 RGBA, 0x08 DXT1, 0x24 and 0x32 as DXT5
     if value == 8:
-        return "DXT1".encode()
+        return "DXT1"
     elif value == 24 or value == 32:
-        return "DXT5".encode()
+        return "DXT5"
+    elif value == 0:
+        return "RGBA"
     else:
-        return "RGBA".encode()
+        return "UNKNOWN"
 
 
 def get_dxt_value(encoding_name):
@@ -491,8 +493,6 @@ def get_dxt_value(encoding_name):
         return 8
     elif encoding_name == "DXT5":
         return 24
-    else:
-        return 0
 
 
 def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_image_text, size_image_text):
@@ -515,7 +515,7 @@ def action_item(q_model_index, image_texture, encoding_image_text, mip_maps_imag
                                tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture].height)
 
         encoding_image_text.setText(
-            "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
+            "Encoding: %s" % (get_encoding_name(tx2d_infos[current_selected_texture].dxt_encoding)))
         mip_maps_image_text.setText("Mipmaps: %s" % tx2d_infos[current_selected_texture].mip_maps)
         size_image_text.setText(
             "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture]
@@ -582,8 +582,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             file.write(data)
             file.close()
 
-    @staticmethod
-    def action_export_all_logic():
+    def action_export_all_logic(self):
 
         # Create folder
         if not os.path.exists("textures"):
@@ -612,8 +611,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         msg = QMessageBox()
         msg.setWindowTitle("Message")
-        msg.setText("All the textures were exported in %s." % folder_export_path)
-        msg.exec()
+        message = "All the textures were exported in: <b>" + folder_export_path \
+                  + "</b><br><br> Do you wish to open the folder?"
+        message_open_exported_files = msg.question(self, '', message, msg.Yes | msg.No)
+
+        # If the users click on 'Yes', it will open the path where the files were saved
+        if message_open_exported_files == msg.Yes:
+            # Show the path folder to the user
+            os.system('explorer.exe ' + folder_export_path)
 
     def action_import_logic(self):
 
@@ -702,7 +707,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         if tx2d_infos[current_selected_texture].dxt_encoding != dxt_encoding:
                             tx2d_infos[current_selected_texture].dxt_encoding = dxt_encoding
                             self.encodingImageText.setText("Encoding: %s" %
-                                                           (get_dxt_byte(dxt_encoding).decode('utf-8')))
+                                                           (get_encoding_name(dxt_encoding)))
 
                         # Change texture in the array
                         tx2_datas[current_selected_texture].data = data
@@ -929,7 +934,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.fileNameText.setText(basename.split(".")[0])
         self.fileNameText.setVisible(True)
         self.encodingImageText.setText(
-            "Encoding: %s" % (get_dxt_byte(tx2d_infos[current_selected_texture].dxt_encoding).decode('utf-8')))
+            "Encoding: %s" % (get_encoding_name(tx2d_infos[current_selected_texture].dxt_encoding)))
         self.mipMapsImageText.setText("Mipmaps: %d" % tx2d_infos[current_selected_texture].mip_maps)
         self.sizeImageText.setText(
             "Resolution: %dx%d" % (tx2d_infos[current_selected_texture].width, tx2d_infos[current_selected_texture]
