@@ -20,3 +20,9 @@ Support for png images. Now you can explore, export and import textures into tho
   <img src="images/museum_picture.jpg" width="40%" />
   <img src="images/versus_image.jpg" width="40%" /> 
 </p>
+
+## 1.8 version
+
+The shaders has a height equals to 1 and can't be displayed clearly because of that. Now in the display, the height will be greater in pos of displaying the shaders better.
+
+<img src="images/shaders_display.jpg" alt="1.8 shaders display" width="50%">
