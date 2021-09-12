@@ -1,3 +1,5 @@
+# DEPRECATED! This tool was moved to this new repository: [Raging tools](https://github.com/adsl14/Raging-tools)
+
 # vram explorer
 
 ![vram explorer image](images/main_image.png)
